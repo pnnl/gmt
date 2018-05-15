@@ -1,0 +1,191 @@
+/*
+ * Global Memory and Threading (GMT)
+ *
+ * Copyright © 2018, Battelle Memorial Institute
+ * All rights reserved.
+ *
+ * Battelle Memorial Institute (hereinafter Battelle) hereby grants permission to
+ * any person or entity lawfully obtaining a copy of this software and associated
+ * documentation files (hereinafter “the Software”) to redistribute and use the
+ * Software in source and binary forms, with or without modification.  Such
+ * person or entity may use, copy, modify, merge, publish, distribute,
+ * sublicense, and/or sell copies of the Software, and may permit others to do
+ * so, subject to the following conditions:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. Neither the name `Battelle Memorial Institute` or `Battelle` may be used in
+ *    any form whatsoever without the express written consent of `Battelle`.
+ *  
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL `BATTELLE` OR CONTRIBUTORS BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ * ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+#ifndef __CONFIG_H__
+#define __CONFIG_H__
+
+#include <stdint.h>
+#include <stdbool.h>
+#include <linux/limits.h>
+#include "gmt/gmt_config.h"
+
+/* configuration options provided by CMake */
+#define BUILD_VERSION    "@PACKAGE_VERSION@"
+#define COMPILER_NAME    "@CMAKE_C_COMPILER_ID@"
+#define COMPILER_VERSION "@CMAKE_C_COMPILER_VERSION@"
+#define CFLAGS           "@CMAKE_C_FLAGS@"
+
+/* compile time options, they change the structure of the code and 
+ * can't be exposed dynamically */
+
+/* enable single node */
+#define ENABLE_SINGLE_NODE_ONLY      0
+
+/* disable _asserts */
+#define ENABLE_ASSERTS               1
+
+/* enable profiling */
+#define ENABLE_PROFILING             0
+
+/* enable instrumentation (compile with -g -rdynamic -finstrument-functions) */
+#define ENABLE_INSTRUMENTATION       0
+
+/* enable timing */
+#define ENABLE_TIMING                0
+
+/* enable gmt_ucontext and enable libc ucontext (slower) */
+#define ENABLE_GMT_UCONTEXTS         1
+
+/* enable uthread stacks that expand as more stack is used from
+ *UTHREAD_INITIAL_STACK_SIZE up to UTHREAD_MAX_STACK_SIZE */
+#define ENABLE_EXPANDABLE_STACKS     1
+
+/* these below could be exposed in gmt_config and also configurable by command 
+ * line */
+
+/* enable aggregation of messages */
+#define ENABLE_AGGREGATION           1
+
+/* When this is enabled we should theoretically prevent any deadlock due 
+ * to buffer shortage */
+#define ENABLE_HELPER_BUFF_COPY      1
+
+
+#define PRINT_CONFIG_INT(x)  printf("%25s%10s%16d\n", #x, "", x);
+#define PRINT_CONFIG_STR(x)  printf("%25s%10s%16s\n", #x, "", x);
+
+typedef struct config_t {
+    uint32_t comm_buffer_size;
+    uint32_t num_cmd_blocks;
+    uint32_t num_buffs_per_channel;
+    uint32_t cmd_block_size;
+    
+    uint32_t num_workers;
+    uint32_t num_helpers;
+    uint32_t num_uthreads_per_worker;
+    uint32_t max_nesting;
+    uint32_t mtasks_per_queue;
+    uint32_t num_mtasks_queues;
+    uint32_t mtasks_res_block_loc;
+    uint32_t mtasks_res_block_rem;
+    uint32_t max_handles_per_node;
+    uint32_t handle_check_interv;
+    uint32_t mtask_check_interv;
+    uint32_t cmdb_check_interv;
+    uint32_t node_agg_check_interv;
+    
+    bool limit_parallelism;
+    bool thread_pinning;
+    bool release_uthread_stack;
+    bool print_stack_break;
+    bool print_gmt_mem_usage;
+    bool enable_usr_signal;
+    uint64_t print_sched_interv;
+       
+    uint32_t num_cores;
+    uint32_t stride_pinning;
+    
+    char state_name[PATH_MAX];
+    int state_populate;
+    int state_prot;
+    char disk_path[PATH_MAX];
+    char ssd_path[PATH_MAX];   
+    
+} config_t;
+
+extern config_t config;
+
+void config_init();
+void config_print();
+void config_help();
+void config_check();
+int config_parse(int argc, char *argv[]);
+
+#ifndef COMM_BUFFER_SIZE
+#define COMM_BUFFER_SIZE config.comm_buffer_size
+#define COMM_BUFFER_SIZE_DYN 1
+#else
+#define COMM_BUFFER_SIZE_DYN 0
+#endif
+
+#ifndef NUM_CMD_BLOCKS
+#define NUM_CMD_BLOCKS config.num_cmd_blocks
+#define NUM_CMD_BLOCKS_DYN 1
+#else
+#define NUM_CMD_BLOCKS_DYN 0
+#endif
+
+#ifndef NUM_BUFFS_PER_CHANNEL
+#define NUM_BUFFS_PER_CHANNEL config.num_buffs_per_channel
+#define NUM_BUFFS_PER_CHANNEL_DYN 1
+#else
+#define NUM_BUFFS_PER_CHANNEL_DYN 0
+#endif
+
+#ifndef NUM_WORKERS
+#define NUM_WORKERS config.num_workers
+#define NUM_WORKERS_DYN 1
+#else
+#define NUM_WORKERS_DYN 0
+#endif
+
+#ifndef NUM_HELPERS
+#define NUM_HELPERS config.num_helpers
+#define NUM_HELPERS_DYN 1
+#else
+#define NUM_HELPERS_DYN 0
+#endif
+
+#ifndef NUM_UTHREADS_PER_WORKER
+#define NUM_UTHREADS_PER_WORKER config.num_uthreads_per_worker
+#define NUM_UTHREADS_PER_WORKER_DYN 1
+#else
+#define NUM_UTHREADS_PER_WORKER_DYN 0
+#endif
+
+#ifndef MAX_NESTING
+#define MAX_NESTING config.max_nesting
+#define MAX_NESTING_DYN 1
+#else
+#define MAX_NESTING_DYN 0
+#endif
+
+#ifndef CMD_BLOCK_SIZE
+#define CMD_BLOCK_SIZE config.cmd_block_size
+#define CMD_BLOCK_SIZE_DYN 1
+#else
+#define CMD_BLOCK_SIZE_DYN 0
+#endif
+
+#endif
