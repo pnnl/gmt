@@ -389,7 +389,7 @@ void alloc_func(const void* _arg, uint32_t sz, void* _ret, uint32_t* _retsize, g
     TestUtils_allocateElems(arg->elem_bytes, node_alloc_size, dataset_size,
                             arg->num_iterations,arg->random_elems, arg->random_offsets, &info);
     info.gdata = gmt_alloc ( node_alloc_size/sizeof(uint64_t), sizeof(uint64_t),
-                             arg->alloc_type | GMT_ALLOC_ZERO, NULL);
+                             (alloc_type_t)(arg->alloc_type | GMT_ALLOC_ZERO), NULL);
     assert(node_alloc_size % sizeof(uint64_t) == 0);
     info.nElems = node_alloc_size/sizeof(uint64_t);
   }

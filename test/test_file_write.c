@@ -47,7 +47,7 @@ typedef struct test_file_args_tag{
 }test_file_args_t;
 
 void fill_garray_body( uint64_t iter_id, void*_args){
-    fill_args_t *args = _args;
+    fill_args_t *args = (fill_args_t *)_args;
 
     uint64_t node_chunk = MAX(CEILING(args->arraysize,gmt_num_nodes()),
             sizeof(uint64_t));

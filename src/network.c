@@ -40,7 +40,7 @@
 void netbuffer_init(net_buffer_t * buff, uint32_t id, void *context)
 {
     memset(buff, 0, sizeof(net_buffer_t));    
-    buff->data = _malloc(COMM_BUFFER_SIZE);
+    buff->data = (uint8_t *)_malloc(COMM_BUFFER_SIZE);
     memset(buff->data, COMM_BUFFER_SIZE, sizeof(uint8_t));    
     buff->num_bytes = 0;
     buff->id = id;

@@ -161,7 +161,7 @@ void uthread_init_all()
 #endif
     log2pagesize = (int)log2(pagesize);
 
-    uthreads = _malloc(sizeof(uthread_t) *
+    uthreads = (uthread_t *)_malloc(sizeof(uthread_t) *
                        NUM_UTHREADS_PER_WORKER * NUM_WORKERS);
 
     ut_stacks_size =
@@ -229,8 +229,8 @@ void uthread_init(int tid, int wid)
     uthreads[tid].wid = wid;
     uthreads[tid].req_nbytes = 0;
     uthreads[tid].recv_nbytes = 0;
-    uthreads[tid].created_mtasks = _malloc(MAX_NESTING * sizeof(uint64_t));
-    uthreads[tid].terminated_mtasks = _malloc(MAX_NESTING * sizeof(uint64_t));
+    uthreads[tid].created_mtasks = (uint64_t *)_malloc(MAX_NESTING * sizeof(uint64_t));
+    uthreads[tid].terminated_mtasks = (uint64_t *)_malloc(MAX_NESTING * sizeof(uint64_t));
     uthreads[tid].mt = NULL;
     uthreads[tid].tstatus = TASK_NOT_INIT;
     uthreads[tid].stack_size = 0;

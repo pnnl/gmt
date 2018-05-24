@@ -58,7 +58,7 @@ extern uint32_t prime_numbers[1000];
 
 void worker_team_init()
 {
-    workers = _malloc(sizeof(worker_t) * NUM_WORKERS);
+    workers = (worker_t *)_malloc(sizeof(worker_t) * NUM_WORKERS);
     /* initialize all stacks */
     uthread_init_all();
 
@@ -78,8 +78,8 @@ void worker_team_init()
         workers[i].rr_cnt = 0;
         workers[i].num_mt_res = 0;
         workers[i].num_mt_ret = 0;
-        workers[i].mt_res = _malloc(config.mtasks_res_block_loc * sizeof(mtask_t *));
-        workers[i].mt_ret = _malloc(config.mtasks_res_block_loc * sizeof(mtask_t *));
+        workers[i].mt_res = (mtask_t **)_malloc(config.mtasks_res_block_loc * sizeof(mtask_t *));
+        workers[i].mt_ret = (mtask_t **)_malloc(config.mtasks_res_block_loc * sizeof(mtask_t *));
         
         uint32_t j;
         for (j = 0; j < NUM_UTHREADS_PER_WORKER; j++) {
@@ -152,7 +152,7 @@ void *worker_loop(void *args)
     if (node_id == 0 && wid == 0) {
         mtask_t *mt = worker_pop_mtask_pool(wid);
         _assert(mt != NULL);
-        mtm_push_mtask_queue(mt, gmt_main, gm_args_bytes, gm_args, -1, 0,
+        mtm_push_mtask_queue(mt, (void *)gmt_main, gm_args_bytes, gm_args, -1, 0,
                              MTASK_GMT_MAIN, gm_argc, gm_argc + 1, 1,
                              GMT_DATA_NULL, NULL, NULL, GMT_HANDLE_NULL);
     }

@@ -131,7 +131,7 @@ void test_execute_with_handle ( uint64_t iter_id, uint64_t num, const void * arg
     exec_args_t *exec_args =(exec_args_t*) malloc(sizeof(exec_args_t)*info.nElemsPerTask);
     GMT_DEBUG_PRINTF("line %d nElemsPerTask %lu", __LINE__, info.nElemsPerTask);
 	assert(exec_args != NULL);
-    uint64_t *ret_value = malloc(sizeof(uint64_t)* info.nElemsPerTask);
+    uint64_t *ret_value = (uint64_t *)malloc(sizeof(uint64_t)* info.nElemsPerTask);
     assert(ret_value != NULL);
     uint32_t ret_size = sizeof(uint64_t);
     uint64_t j = 0, i = 0, c= 0;
@@ -207,7 +207,7 @@ void test_execute_on_node_with_handle ( uint64_t iter_id, uint64_t num, const vo
     uint64_t check_value = node_id+info.gdata+TEST_EXECUTE;
     exec_args_t *exec_args =(exec_args_t*) malloc(sizeof(exec_args_t)*info.nElemsPerTask);
     assert(exec_args != NULL);
-    uint64_t *ret_value = malloc(sizeof(uint64_t)* info.nElemsPerTask);
+    uint64_t *ret_value = (uint64_t *) malloc(sizeof(uint64_t)* info.nElemsPerTask);
     assert(ret_value != NULL);
     uint32_t ret_size = sizeof(uint64_t);
     uint64_t i = 0;

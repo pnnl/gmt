@@ -193,7 +193,7 @@ GMT_INLINE uint32_t gmt_get_alloc_node(gmt_data_t gmt_array)
 
 GMT_INLINE alloc_type_t gmt_get_alloc_policy(gmt_data_t gmt_array)
 {
-    return GD_GET_TYPE(gmt_array);
+    return (alloc_type_t)GD_GET_TYPE(gmt_array);
 }
 
 GMT_INLINE void gmt_yield()

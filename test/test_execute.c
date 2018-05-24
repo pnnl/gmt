@@ -122,7 +122,7 @@ void test_execute ( uint64_t iter_id, uint64_t num, const void * args, gmt_handl
     exec_args_t *exec_args =(exec_args_t*) malloc(sizeof(exec_args_t)*info.nElemsPerTask);
     // GMT_DEBUG_PRINTF("line %d nElemsPerTask %lu", __LINE__, info.nElemsPerTask);
 	assert(exec_args != NULL);
-    uint64_t *ret_value = malloc(sizeof(uint64_t)* info.nElemsPerTask);
+    uint64_t *ret_value = (uint64_t *)malloc(sizeof(uint64_t)* info.nElemsPerTask);
     assert(ret_value != NULL);
     uint32_t ret_size;
     uint64_t j = 0, i = 0, c= 0;

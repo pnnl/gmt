@@ -114,7 +114,7 @@ GMT_INLINE bool gmt_try_execute_on_node_with_handle(uint32_t rnid,
           mtm_handle_isvalid(handle, uthreads[tid].mt, gtid);
           mtm_handle_icr_mtasks_created(handle, 1);
         }
-        mtm_push_mtask_queue(mt, func, args_bytes, args, gtid,
+        mtm_push_mtask_queue(mt, (void *)func, args_bytes, args, gtid,
             uthread_get_nest_lev(tid), MTASK_EXECUTE, 
             0, 1, 1, GMT_DATA_NULL,
             ret_size_ptr, ret_buf_ptr,

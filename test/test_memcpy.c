@@ -61,7 +61,7 @@ void test_memcpy ( uint64_t iter_id, uint64_t num, const void * args, gmt_handle
     }
 
     if(arg->check){ /* check values */
-        uint8_t *chunk = malloc(arg->elem_bytes);
+        uint8_t *chunk = (uint8_t *)malloc(arg->elem_bytes);
         //GMT_DEBUG_PRINTF("check:");
         for (i=0;i < arg->num_oper; i++ ) {
             gmt_get( dst, i , chunk, 1);

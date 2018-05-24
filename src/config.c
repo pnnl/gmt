@@ -405,7 +405,7 @@ int config_parse(int argc, char *argv[])
         }
     }
 
-    char **nargv = _malloc(argc * sizeof(char *));
+    char **nargv = (char **)_malloc(argc * sizeof(char *));
     i = 0;
     while (i < argc) {
         //printf("%d - checking:%s\n", i,argv[i]);
