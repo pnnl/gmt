@@ -4,13 +4,13 @@ set(indv_tests
     test_execute.c
     test_execute_on_node.c
     test_execute_with_handle.c
-    test_file_write.c
+    #test_file_write.c
     test_for_each.c
     test_for_loop.c
     test_for_loop_nested.c
     test_for_loop_whandle.c
     test_get.c
-    test_get_replica.c
+    #test_get_replica.c
     test_local_ptr.c
     test_memcpy.c
     #test_os_memcpy.c
@@ -33,13 +33,13 @@ set(test_pars
     execute
     execute_on_node
     execute_with_handle
-    file_write
+    #file_write
     for_each
     for_loop
     for_loop_nested
     for_loop_whandle
     get
-    get_replica
+    #get_replica
     local_ptr
     memcpy
     put
