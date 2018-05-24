@@ -37,12 +37,12 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-//#include <linux/limits.h> replaced by PATH_MAX macro below
-#include "gmt/gmt_config.h"
-
-#ifndef PATH_MAX
+#ifdef __linux__
+#include <linux/limits.h>
+#else
 #define PATH_MAX 1024
 #endif
+#include "gmt/gmt_config.h"
 
 /* configuration options provided by CMake */
 #define BUILD_VERSION    "@PACKAGE_VERSION@"
