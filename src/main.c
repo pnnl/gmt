@@ -35,7 +35,6 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <getopt.h>
-#include <linux/limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>

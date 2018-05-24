@@ -36,7 +36,6 @@
 #define __MEMORY_H__
 
 #include <fcntl.h>
-#include <linux/limits.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -53,6 +52,12 @@
 #include "gmt/network.h"
 #include "gmt/gmt.h"
 
+/*
+ * workaround for old (or non-) Linux platforms
+ */
+#ifndef MAP_POPULATE
+#define MAP_POPULATE 0
+#endif
 
 
 /************************ MACROS FOR GMT_DATA_T ****************************/

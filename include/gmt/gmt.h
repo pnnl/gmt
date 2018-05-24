@@ -53,6 +53,7 @@
 
 #if defined(__cplusplus)
 #include <cstdint>
+#include <sys/cdefs.h>
 #else
 #define __STDC_LIMIT_MACROS
 #include <stdint.h>
@@ -792,19 +793,19 @@ extern "C" {
         void *ret_buf, uint32_t * ret_size,
         preempt_policy_t policy,
         gmt_handle_t handle)
-      __attribute_warn_unused_result__;
+        __attribute__((__warn_unused_result__));
 
     bool gmt_try_execute_on_node(uint32_t node_id, gmt_execute_func_t func,
         const void *args, uint32_t args_bytes,
         void *ret_buf, uint32_t * ret_size,
         preempt_policy_t policy)
-      __attribute_warn_unused_result__;
+        __attribute__((__warn_unused_result__));
 
     bool gmt_try_execute_on_node_nb(uint32_t node_id, gmt_execute_func_t func,
         const void *args, uint32_t args_bytes,
         void *ret_buf, uint32_t * ret_size,
         preempt_policy_t policy)
-      __attribute_warn_unused_result__;
+        __attribute__((__warn_unused_result__));
 
     //@{
     /** 
@@ -882,20 +883,20 @@ extern "C" {
          void *ret_buf, uint32_t * ret_size,
          preempt_policy_t policy,
          gmt_handle_t handle)
-       __attribute_warn_unused_result__;
+         __attribute__((__warn_unused_result__));
 
      bool gmt_try_execute_on_data(gmt_data_t gmt_array, uint64_t elem_offset,
          gmt_execute_func_t func, const void *args,
          uint32_t args_bytes, void *ret_buf,
          uint32_t * ret_size, preempt_policy_t policy)
-     __attribute_warn_unused_result__;
+         __attribute__((__warn_unused_result__));
 
      bool gmt_try_execute_on_data_nb(gmt_data_t gmt_array,
          uint64_t elem_offset,
          gmt_execute_func_t func, const void *args,
          uint32_t args_bytes, void *ret_buf,
          uint32_t * ret_size, preempt_policy_t policy)
-       __attribute_warn_unused_result__;
+         __attribute__((__warn_unused_result__));
  
     //@}
     //o
