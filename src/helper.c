@@ -153,14 +153,14 @@ void helper_team_run()
 
 void helper_team_init()
 {
-  helpers = _malloc(sizeof(helper_t) * NUM_HELPERS);
+  helpers = (helper_t *)_malloc(sizeof(helper_t) * NUM_HELPERS);
   uint32_t i;
   for (i = 0; i < NUM_HELPERS; i++) {
     helpers[i].aggr_timeout_interval = config.node_agg_check_interv;
     netbuffer_init(&helpers[i].tmp_buff, 0, NULL);
     helpers[i].num_mt_res = 0;
     helpers[i].mt_res =
-      _malloc(config.mtasks_res_block_loc * sizeof(mtask_t *));
+      (mtask_t **)_malloc(config.mtasks_res_block_loc * sizeof(mtask_t *));
   }
   helper_stop_flag = true;
 }
@@ -427,7 +427,7 @@ INLINE void helper_check_in_buffers(uint32_t hid)
             }
 
             worker_do_execute((void *)((uint64_t) c->func_ptr),
-                args, c->args_bytes, loc_buf, loc_ret_size,
+                args, c->args_bytes, loc_buf, (uint32_t *)loc_ret_size,
                 GMT_HANDLE_NULL);
             //c->handle);                    
             helper_send_exec_completed(rnid, hid + NUM_WORKERS,

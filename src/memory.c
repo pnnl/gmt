@@ -100,7 +100,7 @@ static void load_state(char *path, bool is_shm)
             }
             if (fd == -1)
                 ERRORMSG("ERROR opening GMT permanent array %s", tmp);
-            gentry_t *h = mmap(0, sizeof(gentry_t), PROT_READ,
+            gentry_t *h = (gentry_t *)mmap(0, sizeof(gentry_t), PROT_READ,
                                      MAP_SHARED | MAP_POPULATE, fd, 0);
             _assert(h != MAP_FAILED);
             flag = MAP_SHARED | MAP_FIXED;
@@ -111,12 +111,12 @@ static void load_state(char *path, bool is_shm)
             memcpy(ga, h, sizeof(gentry_t));
             munmap(h, sizeof(gentry_t));
             uint64_t nbytes = ga->nbytes_tot + sizeof(gentry_t);
-            ga->data = mmap(ga->data, nbytes, config.state_prot, flag, fd, 0);
+            ga->data = (uint8_t *)mmap(ga->data, nbytes, config.state_prot, flag, fd, 0);
             if (ga->data == MAP_FAILED)
                 ERRORMSG("ERROR map GMT permanent array");
 
             ga->data += sizeof(gentry_t);
-            ga->name = _malloc(strlen(name) + 1);
+            ga->name = (char *)_malloc(strlen(name) + 1);
             memcpy(ga->name, name, strlen(name) + 1);
             printf("node %d - RESTORE NAME:%s\n", node_id, ga->name);
 

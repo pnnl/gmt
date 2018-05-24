@@ -40,15 +40,15 @@ mtask_manager_t mtm;
 void mtm_init()
 {
     uint32_t i;
-    mtm.mtasks_queue = _malloc(sizeof(qmpmc_t) * config.num_mtasks_queues);
+    mtm.mtasks_queue = (qmpmc_t *)_malloc(sizeof(qmpmc_t) * config.num_mtasks_queues);
     for (i = 0; i < config.num_mtasks_queues; i++)
         qmpmc_init(&mtm.mtasks_queue[i], config.mtasks_per_queue);
 
     uint32_t pool_size = config.num_mtasks_queues * config.mtasks_per_queue;
     qmpmc_init(&mtm.mtasks_pool, pool_size);
-    mtm.mtasks = _malloc(pool_size * sizeof(mtask_t));
+    mtm.mtasks = (mtask_t *)_malloc(pool_size * sizeof(mtask_t));
     mtm.handles =
-        _malloc(config.max_handles_per_node * num_nodes * sizeof(g_handle_t));
+        (g_handle_t *)_malloc(config.max_handles_per_node * num_nodes * sizeof(g_handle_t));
 
 
     for (i = 0; i < config.max_handles_per_node * num_nodes; i++) {

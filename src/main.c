@@ -66,7 +66,7 @@ void generate_main_task_args(int argc, char *argv[],
             //printf ( "args_bytes %d\n", *args_bytes );
         }
 
-        *args = _malloc(sizeof(uint8_t) * (*args_bytes));
+        *args = (uint8_t *)_malloc(sizeof(uint8_t) * (*args_bytes));
         _assert(args != NULL);
 
         uint32_t offset_bytes = 0;

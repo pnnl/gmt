@@ -39,7 +39,7 @@ bool_t verify_check_values(gmt_data_t gdata, uint64_t* offsets,
         uint64_t num_elems, uint64_t elem_value){
     _unused(offsets);
     /* get all my chunk in a buffer*/
-    uint64_t *check_data = malloc(num_elems*sizeof(uint64_t));
+    uint64_t *check_data = (uint64_t *)malloc(num_elems*sizeof(uint64_t));
     uint64_t i;
     for (i=0;i < num_elems; i++ ) {
         gmt_get_nb( gdata,i,&check_data[i], 1);

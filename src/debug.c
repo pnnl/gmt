@@ -33,6 +33,7 @@
  */
 
 #include <stdarg.h>
+#include <signal.h>
 #include "gmt/uthread.h"
 #include "gmt/worker.h"
 #include "gmt/helper.h"
