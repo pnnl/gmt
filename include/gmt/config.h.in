@@ -37,8 +37,12 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <linux/limits.h>
+//#include <linux/limits.h> replaced by PATH_MAX macro below
 #include "gmt/gmt_config.h"
+
+#ifndef PATH_MAX
+#define PATH_MAX 1024
+#endif
 
 /* configuration options provided by CMake */
 #define BUILD_VERSION    "@PACKAGE_VERSION@"
@@ -64,8 +68,10 @@
 /* enable timing */
 #define ENABLE_TIMING                0
 
-/* enable gmt_ucontext and enable libc ucontext (slower) */
+/* enable gmt_ucontext and disable libc ucontext (slower) */
+#ifdef __linux__
 #define ENABLE_GMT_UCONTEXTS         1
+#endif
 
 /* enable uthread stacks that expand as more stack is used from
  *UTHREAD_INITIAL_STACK_SIZE up to UTHREAD_MAX_STACK_SIZE */
