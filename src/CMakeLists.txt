@@ -3,7 +3,9 @@ set(sources
       comm_server.c  gmt_execute.c  gmt_misc.c    gmt_ucontext.c  memory.c  profiling.c  utils.c
       config.c       gmt_for.c      helper.c      mtask.c   timing.c     worker.c
 )
+set_source_files_properties(${sources} PROPERTIES LANGUAGE CXX )
 
 add_library(gmt ${sources})
-target_link_libraries(gmt ${MPI_LIBRARIES})
+set_target_properties(gmt PROPERTIES LINKER_LANGUAGE CXX)
+target_link_libraries(gmt ${MPI_LIBRARIES} pthread)
 install(TARGETS gmt DESTINATION lib)
