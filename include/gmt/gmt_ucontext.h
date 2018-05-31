@@ -93,20 +93,18 @@ void gmt_init_ctxt(ucontext_t * cntxt, void *stack,
 #define XSTR(x) STR(x)
 #define STR(x) #x
 
-void gmt_setcontext(const ucontext_t * ucp) __attribute__ ((noinline));
-void gmt_getcontext(ucontext_t * ucp) __attribute__ ((noinline));
-void gmt_start_context() __attribute__ ((noinline));
-void gmt_init_ctxt(ucontext_t * cntxt, void *stack,
-                   int stack_size, ucontext_t * ret_cntxt);
 #if defined(__cplusplus)
 extern "C" {
 #endif
-    void gmt_swapcontext(ucontext_t * oucp, const ucontext_t * ucp)
-        __attribute__ ((noinline));
-    void gmt_makecontext(ucontext_t * ucp, void (*func) (void), int argc, ...)
-        __attribute__ ((noinline));
+void gmt_setcontext(const ucontext_t * ucp) __attribute__ ((noinline));
+void gmt_getcontext(ucontext_t * ucp) __attribute__ ((noinline));
+void gmt_start_context() __attribute__ ((noinline));
+void gmt_init_ctxt(ucontext_t * cntxt, void *stack, int stack_size, ucontext_t * ret_cntxt);
+void gmt_swapcontext(ucontext_t * oucp, const ucontext_t * ucp) __attribute__ ((noinline));
+void gmt_makecontext(ucontext_t * ucp, void (*func) (void), int argc, ...) __attribute__ ((noinline));
 #if defined(__cplusplus)
 }
 #endif
+
 #endif
 #endif

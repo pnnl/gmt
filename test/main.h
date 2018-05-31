@@ -62,7 +62,7 @@
 #define BYTE_VALUE 0xab
 #define BLOCK_VALUES_SIZE (16*1024)
 #define CONTROL_VALUE 0xaaaaaaaaUL
-uint8_t block_values[BLOCK_VALUES_SIZE];
+static uint8_t block_values[BLOCK_VALUES_SIZE];
 
 typedef enum {
     NO_VALUE,
@@ -113,7 +113,7 @@ typedef struct glob_tag { /* global variables */
     gmt_data_t glocal;
 } glob_t;
 
-glob_t glob;
+static glob_t glob;
 
 
 typedef struct arg_tag {

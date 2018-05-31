@@ -19,8 +19,10 @@ set(indv_tests
     testUtils.c
     test_yield.c
 ) 
+set_source_files_properties(${indv_tests} PROPERTIES LANGUAGE CXX )
 
 add_library(gmttestlib ${indv_tests})
+set_target_properties(gmttestlib PROPERTIES LINKER_LANGUAGE CXX)
 set(LIBS )
 foreach(indv_test ${indv_tests})
   get_filename_component(test_name ${indv_test} NAME_WE)
@@ -46,7 +48,10 @@ set(test_pars
     yield
 )
 
+set_source_files_properties(main.c PROPERTIES LANGUAGE CXX )
+
 add_executable(gmttest main.c)
+set_target_properties(gmttest PROPERTIES LINKER_LANGUAGE CXX)
 target_link_libraries(gmttest gmttestlib gmt ${MPI_LIBRARIES})
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/run_test.sh ${CMAKE_CURRENT_BINARY_DIR}/run_test.sh COPYONLY)

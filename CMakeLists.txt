@@ -24,7 +24,7 @@ if (NOT PACKAGE_VERSION)
     "${GMT_VERSION_MAJOR}.${GMT_VERSION_MINOR}.${GMT_VERSION_PATCH}")
 endif()
 
-project(GMT ${cmake_3_0_PROJ_VERSION} ${cmake_3_0_LANGUAGES} C)
+project(GMT ${cmake_3_0_PROJ_VERSION} ${cmake_3_0_LANGUAGES} CXX)
 
 if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   message(STATUS "No build type selected, default to Debug")
@@ -65,11 +65,9 @@ link_libraries(m)
 include_directories(${GMT_MAIN_INCLUDE_DIR} ${GMT_INCLUDE_DIR})
 
 
-# Select the appropriate GCC language standard semantics for "external inline"
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fgnu89-inline -std=gnu99")
 # Appending -O2 to gmt because otherwise it will fail to link.
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -pthread")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wabi -Wextra")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wabi -Wextra")
 
 configure_file(${GMT_MAIN_INCLUDE_DIR}/gmt/config.h.in ${GMT_INCLUDE_DIR}/gmt/config.h)
 install(FILES ${GMT_INCLUDE_DIR}/gmt/config.h DESTINATION include/gmt)
@@ -80,6 +78,7 @@ add_subdirectory(test)
 install(DIRECTORY ${GMT_MAIN_INCLUDE_DIR}/gmt
   DESTINATION include
   PATTERN "*.h"
+  PATTERN "*.hpp"
   PATTERN ".*" EXCLUDE
   PATTERN "*.in" EXCLUDE
   PATTERN "*~" EXCLUDE
