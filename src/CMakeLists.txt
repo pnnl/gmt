@@ -5,7 +5,10 @@ set(sources
 )
 set_source_files_properties(${sources} PROPERTIES LANGUAGE CXX )
 
+find_package(Threads REQUIRED)
+include_directories(${THREADS_PTHREADS_INCLUDE_DIR})
+
 add_library(gmt ${sources})
 set_target_properties(gmt PROPERTIES LINKER_LANGUAGE CXX)
-target_link_libraries(gmt ${MPI_LIBRARIES} pthread)
+target_link_libraries(gmt ${MPI_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 install(TARGETS gmt DESTINATION lib)

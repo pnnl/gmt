@@ -66,7 +66,7 @@ include_directories(${GMT_MAIN_INCLUDE_DIR} ${GMT_INCLUDE_DIR})
 
 
 # Appending -O2 to gmt because otherwise it will fail to link.
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -pthread")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wabi -Wextra")
 
 configure_file(${GMT_MAIN_INCLUDE_DIR}/gmt/config.h.in ${GMT_INCLUDE_DIR}/gmt/config.h)
