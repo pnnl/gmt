@@ -69,6 +69,9 @@ include_directories(${GMT_MAIN_INCLUDE_DIR} ${GMT_INCLUDE_DIR})
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wabi -Wextra")
 
+# Set dynamic queues
+set(GMT_VSIZE_MPMC true)
+
 configure_file(${GMT_MAIN_INCLUDE_DIR}/gmt/config.h.in ${GMT_INCLUDE_DIR}/gmt/config.h)
 install(FILES ${GMT_INCLUDE_DIR}/gmt/config.h DESTINATION include/gmt)
 

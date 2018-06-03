@@ -90,6 +90,9 @@ INLINE uint64_t helper_check_aggreg_timeout(uint32_t hid, uint64_t old_tick)
 
 void *helper_loop(void *arg)
 {
+  /* initialize thread index for the MPMC queue */
+  qmpmc_assign_tid();
+
   uint32_t hid = (uint64_t) arg;
 
   if (config.thread_pinning) {

@@ -144,6 +144,9 @@ void worker_sigsegv_handler(int signum, siginfo_t * info, void *data)
 
 void *worker_loop(void *args)
 {
+	/* initialize thread index for the MPMC queue */
+	qmpmc_assign_tid();
+
     uint32_t thread_id = get_thread_id();
     uint32_t wid = (uint32_t) ((uint64_t) args);
     _assert(wid == thread_id);
