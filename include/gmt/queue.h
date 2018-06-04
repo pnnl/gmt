@@ -315,7 +315,54 @@ INLINE int qmpmc_pop_n(qmpmc_t * q, void **item, uint32_t n)
 INLINE void qmpmc_assign_tid() {
 }
 #else
+/*
+ * GMT-friendly wrapper of the CRT queue
+ */
 #include "crt_queue/crtqueue.hpp"
+
+extern thread_local int qmpmc_tid;
+extern std::atomic<int> qmpmc_tcnt;
+
+typedef CRTurnQueue<void> qmpmc_t_;
+typedef qmpmc_t_ *qmpmc_t;
+
+INLINE void qmpmc_assign_tid() {
+	qmpmc_tid = qmpmc_tcnt++;
+}
+
+INLINE void qmpmc_push(qmpmc_t *q, void *item) {
+	(*q)->enqueue(item, qmpmc_tid);
+}
+
+INLINE int qmpmc_pop(qmpmc_t *q, void **dst) {
+	void *p{nullptr};
+	if(!(p = (*q)->dequeue(qmpmc_tid)))
+		return 0;
+	*dst = p;
+	return 1;
+}
+
+INLINE void qmpmc_push_n(qmpmc_t *q, void **item, uint32_t n)
+{
+    for(uint32_t i = 0; i < n; ++i)
+    	qmpmc_push(q, item[i]);
+}
+
+INLINE int qmpmc_pop_n(qmpmc_t *q, void **item, uint32_t n) {
+	uint32_t i;
+	for(i = 0; i < n; ++i)
+		if(!qmpmc_pop(q, item + i))
+			break;
+	return i;
+}
+
+INLINE void qmpmc_init(qmpmc_t *q, uint32_t) {
+	*q = new qmpmc_t_();
+}
+
+INLINE void qmpmc_destroy(qmpmc_t *q) {
+	(*q)->~CRTurnQueue();
+}
 #endif
 
 
