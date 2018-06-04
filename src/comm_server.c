@@ -177,6 +177,9 @@ INLINE void comm_server_test_recv()
 
 void *comm_server_loop(void *arg)
 {
+	/* initialize thread index for the MPMC queue */
+	qmpmc_assign_tid();
+
     _unused(arg);
     if (config.thread_pinning) {
       pin_thread(config.num_cores - 1);
