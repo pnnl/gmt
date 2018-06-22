@@ -221,7 +221,7 @@ INLINE int64_t NAME##_guess_size (NAME##_t *q ) {\
     return ( delta >= (int64_t)0 ) ? delta : (int64_t) (NEXT_POW2(SIZE) + delta);\
 }
 
-#ifndef VSIZE_MPMC
+
 typedef struct qmpmc_t {
     int64_t writer_ticket __align(CACHE_LINE);
     int64_t volatile reader_ticket __align(CACHE_LINE);
@@ -308,15 +308,6 @@ INLINE int qmpmc_pop_n(qmpmc_t * q, void **item, uint32_t n)
     q->lock = 0;
     return i;
 }
-
-/*
- * dummy function for API compatibility with CRT queue
- */
-INLINE void qmpmc_assign_tid() {
-}
-#else
-#include "crt_queue/crtqueue.hpp"
-#endif
 
 
 /*******************************************************************/

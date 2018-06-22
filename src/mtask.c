@@ -66,9 +66,6 @@ void mtm_init()
          i++)
         handleid_queue_push(&mtm.handleid_pool, i);
 
-    /* initialize thread index for the MPMC queue */
-    qmpmc_assign_tid();
-
     uint32_t cnt = 0;
     for (i = 0; i < pool_size; i++) {
         mtm.mtasks[i].args = NULL;
