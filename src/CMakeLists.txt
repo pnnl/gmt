@@ -2,10 +2,10 @@ set(sources
       aggregation.c  debug.c        gmt_malloc.c  gmt_put_get.c   main.c    network.c    uthread.c
       comm_server.c  gmt_execute.c  gmt_misc.c    gmt_ucontext.c  memory.c  profiling.c  utils.c
       config.c       gmt_for.c      helper.c      mtask.c   timing.c     worker.c
-      queue.cpp
 )
 
 if(GMT_VSIZE_MPMC)
+set(sources ${sources} crt_queue/crtqueue.cpp)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DVSIZE_MPMC")
 endif()
 

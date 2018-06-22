@@ -1,3 +1,37 @@
+/*
+ * Global Memory and Threading (GMT)
+ *
+ * Copyright © 2018, Battelle Memorial Institute
+ * All rights reserved.
+ *
+ * Battelle Memorial Institute (hereinafter Battelle) hereby grants permission to
+ * any person or entity lawfully obtaining a copy of this software and associated
+ * documentation files (hereinafter “the Software”) to redistribute and use the
+ * Software in source and binary forms, with or without modification.  Such
+ * person or entity may use, copy, modify, merge, publish, distribute,
+ * sublicense, and/or sell copies of the Software, and may permit others to do
+ * so, subject to the following conditions:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. Neither the name `Battelle Memorial Institute` or `Battelle` may be used in
+ *    any form whatsoever without the express written consent of `Battelle`.
+ *  
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL `BATTELLE` OR CONTRIBUTORS BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ * ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
 /******************************************************************************
  * Copyright (c) 2014-2016, Pedro Ramalhete, Andreia Correia
  * All rights reserved.
@@ -27,13 +61,12 @@
  ******************************************************************************
  */
 
-#ifndef __CRTQUEUE_HPP__
-#define __CRTQUEUE_HPP__
+#ifndef __CRTQUEUE_H__
+#define __CRTQUEUE_H__
 
-#include <atomic>
-#include <stdexcept>
+#include <cstdint>
 
-#include "crt_queue/HazardPointers.hpp"
+#include "gmt/crt_queue/HazardPointers.hpp"
 
 
 /**
@@ -261,4 +294,51 @@ public:
 
 };
 
-#endif //__CRTQUEUE_HPP__
+/*
+ * GMT-friendly wrapper
+ */
+extern thread_local int qmpmc_tid;
+extern std::atomic<int> qmpmc_tcnt;
+
+typedef CRTurnQueue<void> qmpmc_t_;
+typedef qmpmc_t_ *qmpmc_t;
+
+static void qmpmc_assign_tid() {
+	qmpmc_tid = qmpmc_tcnt++;
+}
+
+static inline void qmpmc_push(qmpmc_t *q, void *item) {
+	(*q)->enqueue(item, qmpmc_tid);
+}
+
+static inline int qmpmc_pop(qmpmc_t *q, void **dst) {
+	void *p{nullptr};
+	if(!(p = (*q)->dequeue(qmpmc_tid)))
+		return 0;
+	*dst = p;
+	return 1;
+}
+
+static inline void qmpmc_push_n(qmpmc_t *q, void **item, uint32_t n)
+{
+    for(uint32_t i = 0; i < n; ++i)
+    	qmpmc_push(q, item[i]);
+}
+
+static inline int qmpmc_pop_n(qmpmc_t *q, void **item, uint32_t n) {
+	uint32_t i;
+	for(i = 0; i < n; ++i)
+		if(!qmpmc_pop(q, item + i))
+			break;
+	return i;
+}
+
+static void qmpmc_init(qmpmc_t *q, uint32_t) {
+	*q = new qmpmc_t_();
+}
+
+static void qmpmc_destroy(qmpmc_t *q) {
+	(*q)->~CRTurnQueue();
+}
+
+#endif //__CRTQUEUE_H__
