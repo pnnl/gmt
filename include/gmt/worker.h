@@ -79,6 +79,10 @@ typedef struct worker_t {
   uint32_t num_mt_ret;
 
   uint32_t rr_cnt;
+
+#if TRACE_QUEUES
+  uint64_t pop_misses = 0, pop_hits = 0;
+#endif
 } worker_t;
 
 extern volatile bool workers_stop_flag;
@@ -138,18 +142,24 @@ INLINE void worker_self_execute(uint32_t tid, uint32_t wid)
       && mtm_total_its() != 0) {
     /* find available work */
     mtask_t *mt = NULL;
-    if (!mtm_pop_mtask_queue(workers[wid].rr_cnt, &mt)) {
-      if (++workers[wid].rr_cnt >= config.num_mtasks_queues)
+    if (!mtm_pop_mtask_queue(workers[wid].rr_cnt, &mt, wid)) {
+      if (++workers[wid].rr_cnt >= mtm.worker_in_degree)
         workers[wid].rr_cnt = 0;
+#if TRACE_QUEUES
+      ++workers[wid].pop_misses;
+#endif
       return;
     }
+#if TRACE_QUEUES
+      ++workers[wid].pop_hits;
+#endif
     _assert(mt != NULL);
     _assert(mt->start_it < mt->end_it);
     uint64_t start_it = mt->start_it;
     mt->start_it += mt->step_it;
     mtm_decrease_total_its(MIN(mt->step_it, mt->end_it - start_it));
     if (mt->start_it < mt->end_it)
-      mtm_return_mtask_queue(mt);
+      mtm_return_mtask_queue(mt, wid);
 
     /* save uthread information */
     uthread_t *ut = &uthreads[tid];
@@ -207,11 +217,17 @@ INLINE void worker_check_mtask_queue(uint32_t tid, uint32_t wid)
       if (nt_lim_space == 0)
         break;
       /* check if there is a mt to execute */
-      if (!mtm_pop_mtask_queue(workers[wid].rr_cnt, &mt)) {
-        if (++workers[wid].rr_cnt >= config.num_mtasks_queues)
+      if (!mtm_pop_mtask_queue(workers[wid].rr_cnt, &mt, wid)) {
+#if TRACE_QUEUES
+          ++workers[wid].pop_misses;
+#endif
+        if (++workers[wid].rr_cnt >= mtm.worker_in_degree)
           workers[wid].rr_cnt = 0;
         break;
       }
+#if TRACE_QUEUES
+      ++workers[wid].pop_hits;
+#endif
       _assert(mt != NULL);
       /* record start, end, step iteration for this mtask */
       uint64_t start_it = mt->start_it;
@@ -229,7 +245,7 @@ INLINE void worker_check_mtask_queue(uint32_t tid, uint32_t wid)
       mt->start_it += its;
       /* if this mt is not completed return it on the queue */
       if (mt->start_it < end_it) {
-        mtm_return_mtask_queue(mt);
+        mtm_return_mtask_queue(mt, wid);
       }
 
       enqueued += its;
@@ -486,7 +502,7 @@ INLINE void worker_push_mtask_pool(uint32_t wid, mtask_t * mt)
     if (num_nodes > 1) {
       int64_t avail = __sync_add_and_fetch(&mtm.num_mtasks_avail,
           config.mtasks_res_block_loc);
-      _assert(avail <= config.num_mtasks_queues * config.mtasks_per_queue);
+      _assert(avail <= mtm.pool_size);
       _unused(avail);
     }
   }

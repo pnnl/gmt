@@ -154,7 +154,7 @@ void *worker_loop(void *args)
         _assert(mt != NULL);
         mtm_push_mtask_queue(mt, (void *)gmt_main, gm_args_bytes, gm_args, -1, 0,
                              MTASK_GMT_MAIN, gm_argc, gm_argc + 1, 1,
-                             GMT_DATA_NULL, NULL, NULL, GMT_HANDLE_NULL);
+                             GMT_DATA_NULL, NULL, NULL, GMT_HANDLE_NULL, wid);
     }
 
     /* Registering signal handler for seg fault */
@@ -230,6 +230,24 @@ void worker_team_stop()
 void worker_team_destroy()
 {
     uint32_t i;
+
+#if TRACE_QUEUES
+    char tfname[128];
+    sprintf(tfname, "qt_workers_n%d", node_id);
+    FILE *tf = fopen(tfname, "w");
+    uint64_t pop_hits = 0, pop_misses = 0;
+    for (i = 0; i < NUM_WORKERS; i++) {
+    	pop_misses += workers[i].pop_misses;
+    	pop_hits += workers[i].pop_hits;
+    	fprintf(tf, "worker-TQ [n=%u w=%u] mtasks: pop-hits = %llu\tpop-misses = %llu\n",
+    	       node_id, i, workers[i].pop_hits, workers[i].pop_misses);
+    }
+    fprintf(tf, "node-TQ [n=%u] mtasks: pop-hits = %llu\tpop-misses = %llu",
+               node_id, pop_hits, pop_misses);
+    fprintf(tf, "\t(hit-rate = %g%%)\n", (float)pop_hits / (pop_hits + pop_misses) * 100);
+    fclose(tf);
+#endif
+
     for (i = 0; i < NUM_WORKERS; i++) {
         uthread_queue_destroy(&workers[i].uthread_queue);
         uthread_queue_destroy(&workers[i].uthread_pool);

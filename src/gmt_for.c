@@ -103,7 +103,7 @@ static inline void for_at(uint32_t tid, uint32_t wid, uint32_t rnid,
           uthread_get_nest_lev(tid), MTASK_FOR, 
           it_start, it_end, it_per_task, gmt_array,
           NULL, NULL,
-          handle);
+          handle, wid);
     }
   } else {
     /* if we can't reserve execute a step locally */

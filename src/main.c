@@ -43,6 +43,9 @@
 #include "gmt/helper.h"
 #include "gmt/memory.h"
 #include "gmt/worker.h"
+#if SCHEDULER
+#include "gmt/scheduler.h"
+#endif
 #include "gmt/profiling.h"
 #include "gmt/utils.h"
 #include "gmt/config.h"
@@ -130,6 +133,9 @@ int main(int argc, char *argv[])
 //                     &mem.shmem_size_avail);
     
     pt_stacks_size = (NUM_WORKERS + NUM_HELPERS + 1) * PTHREAD_STACK_SIZE;
+#ifdef SCHEDULER
+    pt_stacks_size += PTHREAD_STACK_SIZE;
+#endif
     pt_stacks = _malloc(pt_stacks_size);
 
     /* initialize profile and timing in case we compiled for it */
@@ -145,6 +151,11 @@ int main(int argc, char *argv[])
 #endif
     mem_init();
     mtm_init();
+
+#if SCHEDULER
+    scheduler_init();
+#endif
+
     worker_team_init();
 
     /* registering at exit */
@@ -162,7 +173,15 @@ int main(int argc, char *argv[])
     }
 #endif
 
+#if SCHEDULER
+    scheduler_run();
+#endif
+
     worker_team_run();
+
+#if SCHEDULER
+    scheduler_stop();
+#endif
 
     if (node_id == 0) {
         free(gm_args);
@@ -178,6 +197,11 @@ int main(int argc, char *argv[])
     }
 #endif
     worker_team_destroy();
+
+#if SCHEDULER
+    scheduler_destroy();
+#endif
+
     mem_destroy();
     mtm_destroy();
 

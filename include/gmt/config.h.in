@@ -68,6 +68,9 @@
 /* enable timing */
 #define ENABLE_TIMING                0
 
+/* trace queue stats */
+#define TRACE_QUEUES                 1
+
 /* enable gmt_ucontext and disable libc ucontext (slower) */
 #ifdef __linux__
 #define ENABLE_GMT_UCONTEXTS         1
@@ -86,6 +89,16 @@
 /* When this is enabled we should theoretically prevent any deadlock due 
  * to buffer shortage */
 #define ENABLE_HELPER_BUFF_COPY      1
+
+/* enable scheduling through extra thread */
+#define SCHEDULER                    0
+
+/* enable scheduling through all-to-all worker communication */
+#define ALL_TO_ALL                   0
+
+/* select the SPSC implementation for scheduling mtasks */
+#define FF_BSPSC                     0
+#define FF_USPSC                     0
 
 
 #define PRINT_CONFIG_INT(x)  printf("%25s%10s%16d\n", #x, "", x);

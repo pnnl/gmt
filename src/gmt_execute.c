@@ -118,7 +118,7 @@ GMT_INLINE bool gmt_try_execute_on_node_with_handle(uint32_t rnid,
             uthread_get_nest_lev(tid), MTASK_EXECUTE, 
             0, 1, 1, GMT_DATA_NULL,
             ret_size_ptr, ret_buf_ptr,
-            handle);
+            handle, wid);
       }
     } else {
       if (policy == GMT_PREEMPTABLE) {

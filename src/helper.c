@@ -177,7 +177,7 @@ void helper_team_destroy()
 }
 
 INLINE void helper_enqueue_mtask(cmd_gen_t * gcmd, mtask_type_t type, 
-    uint32_t gpid)
+    uint32_t gpid, uint32_t hid)
 {
   mtask_t *mt = NULL;
   while (!qmpmc_pop(&mtm.mtasks_pool, (void **)&mt))
@@ -195,16 +195,16 @@ INLINE void helper_enqueue_mtask(cmd_gen_t * gcmd, mtask_type_t type,
             MTASK_EXECUTE, 0, 1, 1, GMT_DATA_NULL,
             (uint32_t *) ((uint64_t) (c->ret_size_ptr)),
             (void *)((uint64_t) c->ret_buf_ptr),
-            c->handle);
+            c->handle, hid + config.num_workers);
       }
       break;
     case MTASK_FOR:
       {
         cmd_for_t *c = (cmd_for_t *) gcmd;
-        mtm_push_mtask_queue(mt, (void *)((uint64_t) c->func_ptr), 
+        mtm_push_mtask_queue(mt, (void *)((uint64_t) c->func_ptr),
             c->args_bytes, c + 1, gpid, c->nest_lev, MTASK_FOR, 
             c->it_start, c->it_end, c->it_per_task, c->gmt_array,
-            NULL, NULL, c->handle);
+            NULL, NULL, c->handle, hid + config.num_workers);
       }
       break;
     default:
@@ -408,7 +408,7 @@ INLINE void helper_check_in_buffers(uint32_t hid)
             cmd_exec_t *c = (cmd_exec_t *) gcmd;
             //mtask_enq++;
             helper_enqueue_mtask(gcmd, MTASK_EXECUTE,
-                uthread_get_gtid(c->pid, rnid));
+                uthread_get_gtid(c->pid, rnid), hid);
             cmds_ptr += sizeof(*c) + c->args_bytes;
             COUNT_EVENT(HELPER_CMD_EXEC_PREEMPT);
           }
@@ -444,7 +444,7 @@ INLINE void helper_check_in_buffers(uint32_t hid)
           {
             cmd_for_t *c = (cmd_for_t *) gcmd;
             helper_enqueue_mtask(gcmd, MTASK_FOR,
-                uthread_get_gtid(c->pid, rnid));
+                uthread_get_gtid(c->pid, rnid), hid);
             //mtask_enq++;
             cmds_ptr += sizeof(*c) + c->args_bytes;
             COUNT_EVENT(HELPER_CMD_FOR_LOOP);

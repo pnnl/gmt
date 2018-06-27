@@ -141,11 +141,30 @@ typedef struct g_handle_t {
 /** DEFINE for handleid_queue multiple producers and multiple consumers */
 DEFINE_QUEUE_MPMC(handleid_queue, uint64_t, config.max_handles_per_node);
 
-typedef struct mtasks_manager_t {
+#if !ALL_TO_ALL and !SCHEDULER
+	typedef qmpmc_t mtask_queue_t;
+#else
+#if FF_BSPSC
+	typedef ff_bspsc_t spsc_t;
+#elif FF_USPSC
+	typedef ff_uspsc_t spsc_t;
+#endif
+#endif
 
-    /** queue/pool for the mtasks */
-    qmpmc_t *mtasks_queue;
+typedef struct mtasks_manager_t {
+    /** mtasks queues */
+#if ALL_TO_ALL
+	spsc_t **mtasks_queues;
+#elif !SCHEDULER
+	qmpmc_t *mtasks_queue;
+#else
+	spsc_t *mtasks_sched_in_queues, *mtasks_sched_out_queues;
+#endif
+	uint32_t worker_in_degree;
+
+	/** mtasks pool */
     qmpmc_t mtasks_pool;
+    uint32_t pool_size;
 
     /** number of mtasks available on this node */
     volatile int64_t num_mtasks_avail;
@@ -232,18 +251,32 @@ INLINE void mtm_unlock_reservation(uint32_t rnid)
     _assert(ret);
 }
 
-
-INLINE void mtm_return_mtask_queue(mtask_t * mt)
+/*
+ * functions for (re)schedule/get work to/from mtasks queues
+ */
+INLINE void mtm_return_mtask_queue(mtask_t * mt, uint32_t src_id)
 {
+#if ALL_TO_ALL
+	spsc_push(&mtm.mtasks_queues[src_id][mt->qid], mt);
+#elif !SCHEDULER
+	_unused(src_id);
     qmpmc_push(&mtm.mtasks_queue[mt->qid], mt);
+#else
+    spsc_push(&mtm.mtasks_sched_in_queues[src_id], mt);
+#endif
 }
 
-INLINE bool mtm_pop_mtask_queue(uint32_t cnt, mtask_t ** mt)
+INLINE bool mtm_pop_mtask_queue(uint32_t cnt, mtask_t ** mt, uint32_t dst_id)
 {
-    _assert(cnt < config.num_mtasks_queues);
-    if (qmpmc_pop(&mtm.mtasks_queue[cnt], (void **) mt))
-        return true;
-    return false;
+#if ALL_TO_ALL
+	return spsc_pop(&mtm.mtasks_queues[cnt][dst_id], (void **) mt);
+#elif !SCHEDULER
+	_unused(dst_id);
+    return qmpmc_pop(&mtm.mtasks_queue[cnt], (void **) mt);
+#else
+    _unused(cnt);
+    return spsc_pop(&mtm.mtasks_sched_out_queues[dst_id], (void **) mt);
+#endif
 }
 
 INLINE void mtm_push_mtask_queue(mtask_t * mt, void *func, uint32_t args_bytes,
@@ -252,7 +285,7 @@ INLINE void mtm_push_mtask_queue(mtask_t * mt, void *func, uint32_t args_bytes,
                                  uint64_t start_it, uint64_t end_it,
                                  uint64_t step_it, gmt_data_t gmt_array,
                                  uint32_t * ret_buf_size_ptr, void *ret_buf,
-                                 gmt_handle_t handle)
+                                 gmt_handle_t handle, uint32_t src_id)
 {
     mt->func = func;
     mt->type = type;
@@ -283,7 +316,14 @@ INLINE void mtm_push_mtask_queue(mtask_t * mt, void *func, uint32_t args_bytes,
     }
 
     __sync_fetch_and_add(&mtm.total_its, end_it - start_it);
+#if ALL_TO_ALL
+	spsc_push(&mtm.mtasks_queues[src_id][mt->qid], mt);
+#elif !SCHEDULER
+    _unused(src_id);
     qmpmc_push(&mtm.mtasks_queue[mt->qid], mt);
+#else
+    spsc_push(&mtm.mtasks_sched_in_queues[src_id], mt);
+#endif
     INCR_EVENT(WORKER_ITS_ENQUEUE_LOCAL, end_it - start_it);
 }
 
