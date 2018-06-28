@@ -180,8 +180,12 @@ INLINE void helper_enqueue_mtask(cmd_gen_t * gcmd, mtask_type_t type,
     uint32_t gpid, uint32_t hid)
 {
   mtask_t *mt = NULL;
+#if !DTA
   while (!qmpmc_pop(&mtm.mtasks_pool, (void **)&mt))
     /* while there is work in the queue */;
+#else
+  while(!helper_mtask_alloc(hid, (void **)&mt));
+#endif
 
   // TODO add timeout warning message
   _assert(mt != NULL);
@@ -457,8 +461,12 @@ INLINE void helper_check_in_buffers(uint32_t hid)
             rc = (cmd64_t *) agm_get_cmd(rnid, hid + NUM_WORKERS,
                 sizeof(cmd64_t), 0, NULL);
             rc->type = GMT_CMD_MTASKS_RES_REPLY;
+#if !DTA
             rc->value =
               mtm_reserve_mtask_block(config.mtasks_res_block_rem);
+#else
+            rc->value = helper_mtask_reserve(config.mtasks_res_block_rem, hid);
+#endif
             agm_set_cmd_data(rnid, hid + NUM_WORKERS, NULL, 0);
             cmds_ptr += sizeof(cmd_gen_t);
             COUNT_EVENT(HELPER_CMD_MTASKS_RES_REQ);

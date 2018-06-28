@@ -150,7 +150,7 @@ void *worker_loop(void *args)
 
     /* worker 0 of node 0 insert first task */
     if (node_id == 0 && wid == 0) {
-        mtask_t *mt = worker_pop_mtask_pool(wid);
+        mtask_t *mt = worker_mtask_alloc(wid);
         _assert(mt != NULL);
         mtm_push_mtask_queue(mt, (void *)gmt_main, gm_args_bytes, gm_args, -1, 0,
                              MTASK_GMT_MAIN, gm_argc, gm_argc + 1, 1,
@@ -310,7 +310,7 @@ void worker_task_wrapper(uint32_t start_it_L32, uint32_t start_it_H32)
                                        mt.ret_buf_size_ptr, buf_size, buf, mt.handle);
           }
           /* push completed mtask in the pool */
-          worker_push_mtask_pool(ut->wid, ut->mt);
+          worker_mtask_free(ut->wid, ut->mt);
         }
         break;
     case MTASK_FOR:
@@ -344,7 +344,7 @@ void worker_task_wrapper(uint32_t start_it_L32, uint32_t start_it_H32)
 
                 }
                 /* push completed mtask in the pool */
-                worker_push_mtask_pool(ut->wid, ut->mt);
+                worker_mtask_free(ut->wid, ut->mt);
             }
         }
         break;
@@ -413,7 +413,7 @@ void worker_exit()
     worker_team_stop();
 
     /* push mtask that generated this task back in the pool */
-    worker_push_mtask_pool(wid, uthreads[tid].mt);
+    worker_mtask_free(wid, uthreads[tid].mt);
 
     /* return to worker context */
     gmt_swapcontext(&uthreads[tid].ucontext, &workers[wid].worker_ctxt);

@@ -101,7 +101,7 @@ GMT_INLINE bool gmt_try_execute_on_node_with_handle(uint32_t rnid,
     uint32_t wid = uthread_get_wid(tid);
     uint32_t gtid = uthread_get_gtid(tid, node_id);
     if (rnid == node_id) {
-      mtask_t *mt = worker_pop_mtask_pool(wid);
+      mtask_t *mt = worker_mtask_alloc(wid);
       if (mt == NULL) { // Execute here
         //TODO:increase decrease nesting level before and after??
         worker_do_execute((void *)func, args, args_bytes,

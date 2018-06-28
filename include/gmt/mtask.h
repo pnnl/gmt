@@ -152,7 +152,7 @@ DEFINE_QUEUE_MPMC(handleid_queue, uint64_t, config.max_handles_per_node);
 #endif
 
 typedef struct mtasks_manager_t {
-    /** mtasks queues */
+    /* structures for task scheduling */
 #if ALL_TO_ALL
 	spsc_t **mtasks_queues;
 #elif !SCHEDULER
@@ -162,15 +162,18 @@ typedef struct mtasks_manager_t {
 #endif
 	uint32_t worker_in_degree;
 
+	/* structures for task allocation */
+#if !DTA
 	/** mtasks pool */
     qmpmc_t mtasks_pool;
     uint32_t pool_size;
 
-    /** number of mtasks available on this node */
-    volatile int64_t num_mtasks_avail;
-
     /** actual array of the mtasks of size MAX_MTASKS_PER_THREAD */
     mtask_t *mtasks;
+
+    /** number of mtasks available on this node */
+    volatile int64_t num_mtasks_avail;
+#endif
 
     /** Array of mtasks that this node has reserved on each remote node */
     int64_t volatile *num_mtasks_res_array;
@@ -216,6 +219,7 @@ INLINE void mtm_mark_reservation_block(uint32_t rnid, uint64_t value)
     __sync_add_and_fetch(&mtm.num_mtasks_res_array[rnid],  value);
 }
 
+#if !DTA
 /** reserve a block of mtask locally */
 INLINE uint64_t mtm_reserve_mtask_block(uint32_t res_size)
 {
@@ -232,6 +236,7 @@ INLINE uint64_t mtm_reserve_mtask_block(uint32_t res_size)
     }
     return res_size;
 }
+#endif
 
 /** lock reservation of mtasks on a given remote node, this prevents multiple
  * uthreads to attempt concurrent requests of a block of MTASKS */

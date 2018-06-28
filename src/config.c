@@ -69,7 +69,7 @@ void config_init()
     config.mtasks_res_block_loc = 32;
     config.mtasks_res_block_rem = 1024;
     config.limit_parallelism = false;
-    config.thread_pinning = true;
+    config.thread_pinning = false;
     config.release_uthread_stack = false;
     config.print_stack_break = false;
     config.print_gmt_mem_usage = false;

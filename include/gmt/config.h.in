@@ -90,6 +90,9 @@
  * to buffer shortage */
 #define ENABLE_HELPER_BUFF_COPY      1
 
+/*
+ * task scheduling
+ */
 /* enable scheduling through extra thread */
 #define SCHEDULER                    0
 
@@ -99,6 +102,12 @@
 /* select the SPSC implementation for scheduling mtasks */
 #define FF_BSPSC                     0
 #define FF_USPSC                     0
+
+/*
+ * task allocation
+ */
+ /* enable dynamic task allocation */
+ #define DTA                         0
 
 
 #define PRINT_CONFIG_INT(x)  printf("%25s%10s%16d\n", #x, "", x);

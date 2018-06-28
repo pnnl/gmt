@@ -39,10 +39,39 @@ mtask_manager_t mtm;
 
 void mtm_init()
 {
-    uint32_t i;
+	uint32_t i;
+
+	/* initialize structures for task allocation */
+#if !DTA
+#if ALL_TO_ALL || SCHEDULER
+	mtm.pool_size = config.num_workers * config.mtasks_per_queue;
+#else
+	mtm.pool_size = config.num_mtasks_queues * config.mtasks_per_queue;
+#endif
+	qmpmc_init(&mtm.mtasks_pool, mtm.pool_size);
+	mtm.mtasks = (mtask_t *) _malloc(mtm.pool_size * sizeof(mtask_t));
+	uint32_t cnt = 0;
+	for (i = 0; i < mtm.pool_size; i++) {
+		mtm.mtasks[i].args = NULL;
+		mtm.mtasks[i].largs = NULL;
+		mtm.mtasks[i].args_bytes = 0;
+		mtm.mtasks[i].max_args_bytes = 0;
+		mtm.mtasks[i].qid = cnt;
+		qmpmc_push(&mtm.mtasks_pool, &mtm.mtasks[i]);
+		cnt++;
+#if ALL_TO_ALL || SCHEDULER
+		if (cnt >= config.num_workers)
+#else
+		if (cnt >= config.num_mtasks_queues)
+#endif
+			cnt = 0;
+	}
+	mtm.num_mtasks_avail = mtm.pool_size;
+#endif
+
+	/* initialize structures fot task scheduling */
 #if ALL_TO_ALL
     uint32_t j;
-    mtm.pool_size = config.num_workers * config.mtasks_per_queue;
     mtm.worker_in_degree = config.num_workers + config.num_helpers;
     mtm.mtasks_queues = (spsc_t **)_malloc(sizeof(spsc_t *) * (config.num_workers + config.num_helpers));
     for (i = 0; i < config.num_workers + config.num_helpers; i++) {
@@ -51,13 +80,11 @@ void mtm_init()
     		spsc_init(&mtm.mtasks_queues[i][j], config.mtasks_per_queue);
     }
 #elif !SCHEDULER
-    mtm.pool_size = config.num_mtasks_queues * config.mtasks_per_queue;
     mtm.worker_in_degree = config.num_mtasks_queues;
     mtm.mtasks_queue = (qmpmc_t *)_malloc(sizeof(qmpmc_t) * config.num_mtasks_queues);
     for (i = 0; i < config.num_mtasks_queues; i++)
         qmpmc_init(&mtm.mtasks_queue[i], config.mtasks_per_queue);
 #else
-    mtm.pool_size = config.num_workers * config.mtasks_per_queue;
     mtm.worker_in_degree = 1;
     mtm.mtasks_sched_in_queues = (spsc_t *)_malloc(sizeof(spsc_t) * (config.num_workers + config.num_helpers));
     mtm.mtasks_sched_out_queues = (spsc_t *)_malloc(sizeof(spsc_t) * config.num_workers);
@@ -69,11 +96,9 @@ void mtm_init()
     	spsc_init(&mtm.mtasks_sched_in_queues[i], mtm.pool_size);
 #endif
 
-    qmpmc_init(&mtm.mtasks_pool, mtm.pool_size);
-    mtm.mtasks = (mtask_t *)_malloc(mtm.pool_size * sizeof(mtask_t));
+    /* initialize structures for handle management */
     mtm.handles =
         (g_handle_t *)_malloc(config.max_handles_per_node * num_nodes * sizeof(g_handle_t));
-
 
     for (i = 0; i < config.max_handles_per_node * num_nodes; i++) {
         mtm.handles[i].mtasks_terminated = 0;
@@ -90,26 +115,7 @@ void mtm_init()
          i++)
         handleid_queue_push(&mtm.handleid_pool, i);
 
-    uint32_t cnt = 0;
-    for (i = 0; i < mtm.pool_size; i++) {
-        mtm.mtasks[i].args = NULL;
-        mtm.mtasks[i].largs = NULL;
-        mtm.mtasks[i].args_bytes = 0;
-        mtm.mtasks[i].max_args_bytes = 0;
-        mtm.mtasks[i].qid = cnt;
-        qmpmc_push(&mtm.mtasks_pool, &mtm.mtasks[i]);
-        cnt++;
-#if ALL_TO_ALL
-        if (cnt >= config.num_workers)
-#elif !SCHEDULER
-        if (cnt >= config.num_mtasks_queues)
-#else
-        if (cnt >= config.num_workers)
-#endif
-            cnt = 0;
-
-    }
-
+    /* initialize structures for remote task reservation */
     mtm.num_mtasks_res_array =
         (int64_t volatile *)_malloc(num_nodes * sizeof(int64_t));
     mtm.mtasks_res_pending = (bool *) _malloc(num_nodes * sizeof(bool));
@@ -119,9 +125,6 @@ void mtm_init()
         mtm.mtasks_res_pending[i] = false;
     }
 
-    mtm.num_mtasks_avail = mtm.pool_size;
-    mtm.total_its = 0;
-
     // Pre-reserving remote mtasks
     uint64_t to_reserve = config.mtasks_res_block_rem*(num_nodes-1);
     uint64_t res = mtm_reserve_mtask_block(to_reserve);
@@ -130,15 +133,24 @@ void mtm_init()
       if (i != node_id) 
         mtm_mark_reservation_block(i, config.mtasks_res_block_rem);
     }
+
+    /* initialize iterations counter */
+    mtm.total_its = 0;
 }
 
 void mtm_destroy()
 {
+	/* destroy structures for task allocation */
+#if !DTA
     uint32_t i;
     for (i = 0; i < mtm.pool_size; i++)
     if(mtm.mtasks[i].args)
         free(mtm.mtasks[i].args);
+    free(mtm.mtasks);
+    qmpmc_destroy(&mtm.mtasks_pool);
+#endif
 
+    /* destroy structures for task scheduling */
 #if ALL_TO_ALL
     uint32_t j;
     for (i = 0; i < config.num_workers + config.num_helpers; i++) {
@@ -162,11 +174,9 @@ void mtm_destroy()
     free(mtm.mtasks_sched_out_queues);
 #endif
 
-    qmpmc_destroy(&mtm.mtasks_pool);
-    
+    /* destroy everything else */
     handleid_queue_destroy(&mtm.handleid_pool);
     free((void *)mtm.num_mtasks_res_array);
     free(mtm.mtasks_res_pending);
-    free(mtm.mtasks);
     free(mtm.handles);
 }

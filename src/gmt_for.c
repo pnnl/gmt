@@ -83,7 +83,7 @@ static inline void for_at(uint32_t tid, uint32_t wid, uint32_t rnid,
   if (rnid == node_id) {
     mtask_t *mt = NULL;
     while (it_start < it_end && 
-        ((mt = worker_pop_mtask_pool(wid)) == NULL)) {
+        ((mt = worker_mtask_alloc(wid)) == NULL)) {
       uint64_t its = MIN(it_per_task, it_end - it_start);
       //TODO:increase decrease nesting level before and after??               
       worker_do_for(func, it_start, its, args, gmt_array, handle);
