@@ -46,6 +46,7 @@
 #include "gmt/worker.h"
 #include "gmt/mtask.h"
 #include "gmt/utils.h"
+#include "gmt/memory.h"
 
 /**********************************************************************
   Primary API implementations 

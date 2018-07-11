@@ -340,6 +340,11 @@ INLINE int spsc_pop(ff_bspsc_t * q, void **item)
     return q->pop(item);
 }
 
+INLINE bool spsc_empty(ff_bspsc_t * q)
+{
+    return q->empty();
+}
+
 /*******************************************************************/
 /*      FastFlow unbounded single producer single consumer         */
 /*******************************************************************/
@@ -366,6 +371,11 @@ INLINE void spsc_push(ff_uspsc_t * q, void *item)
 INLINE int spsc_pop(ff_uspsc_t * q, void **item)
 {
     return q->pop(item);
+}
+
+INLINE bool spsc_empty(ff_uspsc_t * q)
+{
+    return q->empty();
 }
 
 /*******************************************************************/

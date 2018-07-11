@@ -163,7 +163,6 @@ typedef struct mtasks_manager_t {
 	uint32_t worker_in_degree;
 
 	/* structures for task allocation */
-#if !DTA
 	/** mtasks pool */
     qmpmc_t mtasks_pool;
     uint32_t pool_size;
@@ -173,7 +172,6 @@ typedef struct mtasks_manager_t {
 
     /** number of mtasks available on this node */
     volatile int64_t num_mtasks_avail;
-#endif
 
     /** Array of mtasks that this node has reserved on each remote node */
     int64_t volatile *num_mtasks_res_array;
@@ -201,6 +199,8 @@ extern mtask_manager_t mtm;
 
 void mtm_init();
 void mtm_destroy();
+void mtm_mtask_init(mtask_t *, uint32_t *);
+void mtm_mtask_destroy(mtask_t *);
 
 /** aquire a reservation slot (if a reservation exists) for the remote node rnid */
 INLINE bool mtm_acquire_reservation(uint32_t rnid)
@@ -219,7 +219,6 @@ INLINE void mtm_mark_reservation_block(uint32_t rnid, uint64_t value)
     __sync_add_and_fetch(&mtm.num_mtasks_res_array[rnid],  value);
 }
 
-#if !DTA
 /** reserve a block of mtask locally */
 INLINE uint64_t mtm_reserve_mtask_block(uint32_t res_size)
 {
@@ -236,7 +235,6 @@ INLINE uint64_t mtm_reserve_mtask_block(uint32_t res_size)
     }
     return res_size;
 }
-#endif
 
 /** lock reservation of mtasks on a given remote node, this prevents multiple
  * uthreads to attempt concurrent requests of a block of MTASKS */

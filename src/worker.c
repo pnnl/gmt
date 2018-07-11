@@ -42,6 +42,7 @@
 
 #include "gmt/worker.h"
 #include "gmt/mtask.h"
+#include "gmt/helper.h"
 
 /* gmt_main arguments */
 extern uint8_t *gm_args;

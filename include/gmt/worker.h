@@ -47,7 +47,6 @@
 #include "gmt/aggregation.h"
 #include "gmt/gmt_ucontext.h"
 #include "gmt/uthread.h"
-#include "gmt/helper.h"
 
 typedef struct worker_t {
   /* queues of uthreads and pool */
@@ -308,9 +307,7 @@ INLINE void worker_scheduler_state(uint32_t wid)
       tot_nest_lev += uthreads[i].nest_lev;
     }
 
-#if !DTA
     uint64_t mtask_avail = mtm.num_mtasks_avail;
-#endif
     char str[2048] = "\0";
     char *pstr = str;
     for (i = 0; i < num_nodes; i++) {
@@ -322,17 +319,13 @@ INLINE void worker_scheduler_state(uint32_t wid)
     _DEBUG(" Tasks: not_init %d, %u run, %u not_start, %u wait_data, "
         "%u wait_mtasks, %u wait_handles, %u throt, "
         "avg nest %.2f/%d, iters_todo* %ld "
-#if !DTA
         "- mtask_avail* %ld (*=estimate)"
-#endif
     	"- %s\n",
         not_init, running, not_started, waiting_data,
         waiting_mtasks, waiting_handles, throttling,
         ((float)tot_nest_lev / NUM_UTHREADS_PER_WORKER) + 1, MAX_NESTING,
         mtm_total_its()
-#if !DTA
 		, mtask_avail
-#endif
 		, str);
 
     _assert(not_init + running + not_started + waiting_data +
@@ -482,7 +475,6 @@ INLINE bool worker_reserve_mtasks(uint32_t tid, uint32_t wid, uint32_t rnid)
 
 INLINE mtask_t *worker_mtask_alloc(uint32_t wid)
 {
-#if !DTA
   if (workers[wid].num_mt_res == 0) {
     uint32_t cnt = config.mtasks_res_block_loc;
     if (num_nodes > 1)
@@ -500,13 +492,10 @@ INLINE mtask_t *worker_mtask_alloc(uint32_t wid)
     return NULL;
   else
     return workers[wid].mt_res[--workers[wid].num_mt_res];
-#else
-#endif
 }
 
 INLINE void worker_mtask_free(uint32_t wid, mtask_t * mt)
 {
-#if !DTA
   workers[wid].mt_ret[workers[wid].num_mt_ret++] = mt;
   if (workers[wid].num_mt_ret == config.mtasks_res_block_loc) {
     qmpmc_push_n(&mtm.mtasks_pool, (void **)workers[wid].mt_ret,
@@ -519,8 +508,6 @@ INLINE void worker_mtask_free(uint32_t wid, mtask_t * mt)
       _unused(avail);
     }
   }
-#else
-#endif
 }
 
 INLINE void worker_do_for(void *func, uint64_t start_it, uint64_t step_it,
