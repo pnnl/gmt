@@ -37,6 +37,9 @@
 #include <stdbool.h>
 #include "gmt/helper.h"
 #include "gmt/worker.h"
+#if DTA
+#include "gmt/dta.h"
+#endif
 
 #if !ENABLE_SINGLE_NODE_ONLY
 
@@ -158,9 +161,11 @@ void helper_team_init()
   for (i = 0; i < NUM_HELPERS; i++) {
     helpers[i].aggr_timeout_interval = config.node_agg_check_interv;
     netbuffer_init(&helpers[i].tmp_buff, 0, NULL);
+#if !DTA
     helpers[i].num_mt_res = 0;
     helpers[i].mt_res =
       (mtask_t **)_malloc(config.mtasks_res_block_loc * sizeof(mtask_t *));
+#endif
   }
   helper_stop_flag = true;
 }
@@ -184,7 +189,7 @@ INLINE void helper_enqueue_mtask(cmd_gen_t * gcmd, mtask_type_t type,
   while (!qmpmc_pop(&mtm.mtasks_pool, (void **)&mt))
     /* while there is work in the queue */;
 #else
-  while(!helper_mtask_alloc(hid, (void **)&mt));
+	while(!(mt = dta_mtask_alloc(&dtam.h_alloc[hid])));
 #endif
 
   // TODO add timeout warning message
@@ -217,6 +222,12 @@ INLINE void helper_enqueue_mtask(cmd_gen_t * gcmd, mtask_type_t type,
   }
 
 }
+
+#if DTA
+INLINE uint32_t helper_mtasks_reserve(uint32_t n, uint32_t hid) {
+       return dta_mtasks_reserve(&dtam.h_alloc[hid], n);
+}
+#endif
 
 INLINE void helper_send_rep_ack(uint32_t rnid, uint32_t hid, uint32_t tid)
 {
@@ -465,7 +476,7 @@ INLINE void helper_check_in_buffers(uint32_t hid)
             rc->value =
               mtm_reserve_mtask_block(config.mtasks_res_block_rem);
 #else
-            rc->value = helper_mtask_reserve(config.mtasks_res_block_rem, hid);
+            rc->value = helper_mtasks_reserve(config.mtasks_res_block_rem, hid);
 #endif
             agm_set_cmd_data(rnid, hid + NUM_WORKERS, NULL, 0);
             cmds_ptr += sizeof(cmd_gen_t);

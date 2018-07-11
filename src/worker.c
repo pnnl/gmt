@@ -43,6 +43,9 @@
 #include "gmt/worker.h"
 #include "gmt/mtask.h"
 #include "gmt/helper.h"
+#if DTA
+#include "gmt/dta.h"
+#endif
 
 /* gmt_main arguments */
 extern uint8_t *gm_args;
@@ -77,10 +80,13 @@ void worker_team_init()
         workers[i].tick_cmdb_timeout = rdtsc();
         workers[i].cnt_print_sched = 0;
         workers[i].rr_cnt = 0;
+
+#if !DTA
         workers[i].num_mt_res = 0;
         workers[i].num_mt_ret = 0;
         workers[i].mt_res = (mtask_t **)_malloc(config.mtasks_res_block_loc * sizeof(mtask_t *));
         workers[i].mt_ret = (mtask_t **)_malloc(config.mtasks_res_block_loc * sizeof(mtask_t *));
+#endif
         
         uint32_t j;
         for (j = 0; j < NUM_UTHREADS_PER_WORKER; j++) {
@@ -252,8 +258,10 @@ void worker_team_destroy()
     for (i = 0; i < NUM_WORKERS; i++) {
         uthread_queue_destroy(&workers[i].uthread_queue);
         uthread_queue_destroy(&workers[i].uthread_pool);
+#if !DTA
         free(workers[i].mt_res);
         free(workers[i].mt_ret);
+#endif
     }
 
     uthread_destroy_all();

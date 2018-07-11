@@ -57,8 +57,10 @@ typedef struct helper_tag {
     uint32_t part_end_node_id;
     uint32_t aggr_timeout_interval;
     
+#if !DTA
     mtask_t **mt_res;
     uint32_t num_mt_res;
+#endif
 } helper_t;
 #endif
 

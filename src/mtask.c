@@ -34,6 +34,10 @@
 
 #include "gmt/mtask.h"
 #include "gmt/network.h"
+#include "gmt/queue.h"
+#if DTA
+#include "gmt/dta.h"
+#endif
 
 mtask_manager_t mtm;
 
@@ -47,14 +51,18 @@ void mtm_init()
 #else
 	mtm.pool_size = config.num_mtasks_queues * config.mtasks_per_queue;
 #endif
+#if !DTA
 	qmpmc_init(&mtm.mtasks_pool, mtm.pool_size);
 	mtm.mtasks = (mtask_t *) _malloc(mtm.pool_size * sizeof(mtask_t));
 	uint32_t cnt = 0;
 	for (i = 0; i < mtm.pool_size; i++) {
-		mtm_mtask_init(&mtm.mtasks[i], &cnt);
+		mtm_mtask_init(&mtm.mtasks[i], 0, &cnt);
 		qmpmc_push(&mtm.mtasks_pool, &mtm.mtasks[i]);
 	}
 	mtm.num_mtasks_avail = mtm.pool_size;
+#else
+	dtam_init();
+#endif
 
 	/* initialize structures fot task scheduling */
 #if ALL_TO_ALL
@@ -113,9 +121,16 @@ void mtm_init()
     }
 
     // Pre-reserving remote mtasks
+#if !DTA
     uint64_t to_reserve = config.mtasks_res_block_rem*(num_nodes-1);
     uint64_t res = mtm_reserve_mtask_block(to_reserve);
     _assert(res == to_reserve);
+#else
+	_assert(config.num_helpers <= 1);
+	uint64_t to_reserve = config.mtasks_res_block_rem * (num_nodes-1);
+    uint64_t res = dta_mtasks_reserve(&dtam.h_alloc[0], to_reserve);
+    _assert(res == to_reserve);
+#endif
     for (i = 0; i < num_nodes; i++){
       if (i != node_id) 
         mtm_mark_reservation_block(i, config.mtasks_res_block_rem);
@@ -127,13 +142,16 @@ void mtm_init()
 
 void mtm_destroy()
 {
+	uint32_t i;
+
 	/* destroy structures for task allocation */
 #if !DTA
-    uint32_t i;
     for (i = 0; i < mtm.pool_size; i++)
     	mtm_mtask_destroy(&mtm.mtasks[i]);
     free(mtm.mtasks);
     qmpmc_destroy(&mtm.mtasks_pool);
+#else
+    dtam_destroy();
 #endif
 
     /* destroy structures for task scheduling */
@@ -167,19 +185,25 @@ void mtm_destroy()
     free(mtm.handles);
 }
 
-void mtm_mtask_init(mtask_t *mt, uint32_t *cnt) {
+void mtm_mtask_init(mtask_t *mt, uint32_t aid, uint32_t *cnt) {
 	mt->args = NULL;
 	mt->largs = NULL;
 	mt->args_bytes = 0;
 	mt->max_args_bytes = 0;
 	mt->qid = *cnt;
 	(*cnt)++;
+#if DTA
+	mt->allocator_id = aid;
+#else
+	_unused(aid);
+#endif
 #if ALL_TO_ALL || SCHEDULER
 	if (*cnt >= config.num_workers)
 #else
 	if (*cnt >= config.num_mtasks_queues)
 #endif
 		*cnt = 0;
+
 }
 
 void mtm_mtask_destroy(mtask_t *mt) {

@@ -314,7 +314,7 @@ INLINE int qmpmc_pop_n(qmpmc_t * q, void **item, uint32_t n)
 /*******************************************************************/
 #include <new>
 
-#define FF_UNCHECKED_PUSH
+#define SWSR_MULTIPUSH
 #include "ff/buffer.hpp"
 
 typedef ff::SWSR_Ptr_Buffer ff_bspsc_t;
@@ -335,6 +335,11 @@ INLINE void spsc_push(ff_bspsc_t * q, void *item)
     q->push(item);
 }
 
+INLINE void spsc_buffered_push(ff_bspsc_t * q, void *item)
+{
+    q->mpush(item);
+}
+
 INLINE int spsc_pop(ff_bspsc_t * q, void **item)
 {
     return q->pop(item);
@@ -345,9 +350,15 @@ INLINE bool spsc_empty(ff_bspsc_t * q)
     return q->empty();
 }
 
+INLINE uint32_t spsc_size(ff_bspsc_t * q)
+{
+    return q->length();
+}
+
 /*******************************************************************/
 /*      FastFlow unbounded single producer single consumer         */
 /*******************************************************************/
+#define uSWSR_MULTIPUSH
 #include "ff/ubuffer.hpp"
 
 typedef ff::uSWSR_Ptr_Buffer ff_uspsc_t;
@@ -368,6 +379,11 @@ INLINE void spsc_push(ff_uspsc_t * q, void *item)
     q->push(item);
 }
 
+INLINE void spsc_buffered_push(ff_uspsc_t * q, void *item)
+{
+    q->mpush(item);
+}
+
 INLINE int spsc_pop(ff_uspsc_t * q, void **item)
 {
     return q->pop(item);
@@ -377,6 +393,17 @@ INLINE bool spsc_empty(ff_uspsc_t * q)
 {
     return q->empty();
 }
+
+INLINE uint32_t spsc_size(ff_uspsc_t * q)
+{
+    return q->length();
+}
+
+#if FF_BSPSC
+       typedef ff_bspsc_t spsc_t;
+#elif FF_USPSC
+       typedef ff_uspsc_t spsc_t;
+#endif
 
 /*******************************************************************/
 /*               single producer single consumer                   */

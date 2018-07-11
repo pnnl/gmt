@@ -69,7 +69,10 @@
 #define ENABLE_TIMING                0
 
 /* trace queue stats */
-#define TRACE_QUEUES                 1
+#define TRACE_QUEUES                 0
+
+/* trace allocation stats */
+#define TRACE_ALLOC                  0
 
 /* enable gmt_ucontext and disable libc ucontext (slower) */
 #ifdef __linux__
@@ -100,7 +103,7 @@
 #define ALL_TO_ALL                   0
 
 /* select the SPSC implementation for scheduling mtasks */
-#define FF_BSPSC                     0
+#define FF_BSPSC                     1
 #define FF_USPSC                     0
 
 /*
@@ -125,13 +128,20 @@ typedef struct config_t {
     uint32_t max_nesting;
     uint32_t mtasks_per_queue;
     uint32_t num_mtasks_queues;
+#if !DTA
     uint32_t mtasks_res_block_loc;
+#endif
     uint32_t mtasks_res_block_rem;
     uint32_t max_handles_per_node;
     uint32_t handle_check_interv;
     uint32_t mtask_check_interv;
     uint32_t cmdb_check_interv;
     uint32_t node_agg_check_interv;
+#if DTA
+	uint32_t dta_chunk_size;
+	uint32_t dta_prealloc_worker_chunks;
+	uint32_t dta_prealloc_helper_chunks;
+#endif
     
     bool limit_parallelism;
     bool thread_pinning;

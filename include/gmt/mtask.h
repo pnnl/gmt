@@ -120,6 +120,10 @@ typedef struct PACKED_STR {
     /* this is at the bottom of this structure so we don't interfere with
      *other information above when doing fetch and add */
     uint64_t executed_it;
+
+#if DTA
+    uint32_t allocator_id;
+#endif
 } mtask_t;
 
 typedef enum {
@@ -141,16 +145,6 @@ typedef struct g_handle_t {
 /** DEFINE for handleid_queue multiple producers and multiple consumers */
 DEFINE_QUEUE_MPMC(handleid_queue, uint64_t, config.max_handles_per_node);
 
-#if !ALL_TO_ALL and !SCHEDULER
-	typedef qmpmc_t mtask_queue_t;
-#else
-#if FF_BSPSC
-	typedef ff_bspsc_t spsc_t;
-#elif FF_USPSC
-	typedef ff_uspsc_t spsc_t;
-#endif
-#endif
-
 typedef struct mtasks_manager_t {
     /* structures for task scheduling */
 #if ALL_TO_ALL
@@ -163,15 +157,18 @@ typedef struct mtasks_manager_t {
 	uint32_t worker_in_degree;
 
 	/* structures for task allocation */
+	uint32_t pool_size;
+
+#if !DTA
 	/** mtasks pool */
     qmpmc_t mtasks_pool;
-    uint32_t pool_size;
 
     /** actual array of the mtasks of size MAX_MTASKS_PER_THREAD */
     mtask_t *mtasks;
 
     /** number of mtasks available on this node */
     volatile int64_t num_mtasks_avail;
+#endif
 
     /** Array of mtasks that this node has reserved on each remote node */
     int64_t volatile *num_mtasks_res_array;
@@ -199,8 +196,14 @@ extern mtask_manager_t mtm;
 
 void mtm_init();
 void mtm_destroy();
-void mtm_mtask_init(mtask_t *, uint32_t *);
+void mtm_mtask_init(mtask_t *, uint32_t, uint32_t *);
 void mtm_mtask_destroy(mtask_t *);
+
+#if DTA
+INLINE void mtm_mtask_bind_allocator(mtask_t *mt, uint32_t aid) {
+       mt->allocator_id = aid;
+}
+#endif
 
 /** aquire a reservation slot (if a reservation exists) for the remote node rnid */
 INLINE bool mtm_acquire_reservation(uint32_t rnid)
@@ -219,6 +222,7 @@ INLINE void mtm_mark_reservation_block(uint32_t rnid, uint64_t value)
     __sync_add_and_fetch(&mtm.num_mtasks_res_array[rnid],  value);
 }
 
+#if !DTA
 /** reserve a block of mtask locally */
 INLINE uint64_t mtm_reserve_mtask_block(uint32_t res_size)
 {
@@ -235,6 +239,7 @@ INLINE uint64_t mtm_reserve_mtask_block(uint32_t res_size)
     }
     return res_size;
 }
+#endif
 
 /** lock reservation of mtasks on a given remote node, this prevents multiple
  * uthreads to attempt concurrent requests of a block of MTASKS */
