@@ -59,7 +59,9 @@ void mtm_init()
 		mtm_mtask_init(&mtm.mtasks[i], 0, &cnt);
 		qmpmc_push(&mtm.mtasks_pool, &mtm.mtasks[i]);
 	}
+#if !NO_RESERVE
 	mtm.num_mtasks_avail = mtm.pool_size;
+#endif
 #else
 	dtam_init();
 #endif
@@ -110,6 +112,7 @@ void mtm_init()
          i++)
         handleid_queue_push(&mtm.handleid_pool, i);
 
+#if !NO_RESERVE
     /* initialize structures for remote task reservation */
     mtm.num_mtasks_res_array =
         (int64_t volatile *)_malloc(num_nodes * sizeof(int64_t));
@@ -135,6 +138,7 @@ void mtm_init()
       if (i != node_id) 
         mtm_mark_reservation_block(i, config.mtasks_res_block_rem);
     }
+#endif //if !NO_RESERVE
 
     /* initialize iterations counter */
     mtm.total_its = 0;
@@ -180,8 +184,10 @@ void mtm_destroy()
 
     /* destroy everything else */
     handleid_queue_destroy(&mtm.handleid_pool);
+#if !NO_RESERVE
     free((void *)mtm.num_mtasks_res_array);
     free(mtm.mtasks_res_pending);
+#endif
     free(mtm.handles);
 }
 

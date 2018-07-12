@@ -137,6 +137,7 @@ void dtam_init() {
 	max_worker_pool_size /= (config.num_workers * num_nodes);
 	max_helper_pool_size = config.num_workers * max_worker_pool_size;
 	max_helper_pool_size *= (num_nodes - 1);
+	max_helper_pool_size /= config.num_helpers;
 	dtam.max_worker_chunks = max_worker_pool_size / config.dta_chunk_size;
 	dtam.max_helper_chunks = max_helper_pool_size / config.dta_chunk_size;
 

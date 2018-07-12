@@ -45,8 +45,8 @@
 #include "gmt/gmt.h"
 #include "gmt/worker.h"
 #include "gmt/mtask.h"
-#include "gmt/utils.h"
 #include "gmt/memory.h"
+#include "gmt/utils.h"
 
 /**********************************************************************
   Primary API implementations 
@@ -100,13 +100,14 @@ static inline void for_at(uint32_t tid, uint32_t wid, uint32_t rnid,
         mtm_handle_isvalid(handle, uthreads[tid].mt, gtid);
         mtm_handle_icr_mtasks_created(handle, 1);
       }
-      mtm_push_mtask_queue(mt, func, args_bytes, args, gtid,
+      mtm_schedule_mtask(mt, func, args_bytes, args, gtid,
           uthread_get_nest_lev(tid), MTASK_FOR, 
           it_start, it_end, it_per_task, gmt_array,
           NULL, NULL,
           handle, wid);
     }
   } else {
+#if !NO_RESERVE
     /* if we can't reserve execute a step locally */
     while (it_start < it_end && !worker_reserve_mtasks(tid, wid, rnid)) {
       uint64_t its = MIN(it_per_task, it_end - it_start);
@@ -115,6 +116,7 @@ static inline void for_at(uint32_t tid, uint32_t wid, uint32_t rnid,
       it_start += its;
       INCR_EVENT(WORKER_ITS_SELF_EXECUTE, its);
     }
+#endif
 
     if (it_start < it_end) {
       const uint32_t gtid = uthread_get_gtid(tid, node_id);

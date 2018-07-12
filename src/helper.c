@@ -53,6 +53,11 @@ void helper_team_stop()
   uint32_t h;
   for (h = 0; h < NUM_HELPERS; h++)
     pthread_join(helpers[h].pthread, NULL);
+
+#if NO_RESERVE
+  for (h = 0; h < NUM_HELPERS; h++)
+    _assert(helpers[h].pending->empty());
+#endif
 }
 
 INLINE uint64_t helper_check_aggreg_timeout(uint32_t hid, uint64_t old_tick)
@@ -91,69 +96,6 @@ INLINE uint64_t helper_check_aggreg_timeout(uint32_t hid, uint64_t old_tick)
 #endif
 }
 
-void *helper_loop(void *arg)
-{
-  uint32_t hid = (uint64_t) arg;
-
-  if (config.thread_pinning) {
-    uint32_t thread_id = get_thread_id();
-    uint32_t core = select_core(thread_id, config.num_cores,
-        config.stride_pinning);
-    pin_thread(core);
-    if (node_id == 0) {
-      DEBUG0(printf("pining CPU %u with pthread_id %u\n",
-            core, thread_id););
-    }
-  }
-
-  uint32_t part_num_nodes = CEILING(num_nodes, NUM_HELPERS);
-  helpers[hid].part_start_node_id = part_num_nodes * hid;
-  helpers[hid].part_end_node_id = MIN(part_num_nodes * (hid + 1), num_nodes);
-
-  uint64_t aggr_timeout = rdtsc();
-  uint64_t cmdb_timeout = rdtsc();
-
-  while (!helper_stop_flag) {
-    /* check general  timeout */
-    START_TIME(ts1);
-    aggr_timeout = helper_check_aggreg_timeout(hid, aggr_timeout);
-    END_TIME(ts1, HELPER_SERVICE_AGGR);
-
-    START_TIME(ts2);
-    agm_check_cmdb_timeout(hid + NUM_WORKERS, &cmdb_timeout);
-    END_TIME(ts2, HELPER_SERVICE_CMDB);
-
-    /* check for incoming buffers */
-    START_TIME(ts3);
-    helper_check_in_buffers(hid);
-    END_TIME(ts3, HELPER_SERVICE_BUF);
-  }
-  pthread_exit(NULL);
-}
-
-void helper_team_run()
-{
-  helper_stop_flag = false;
-  uint64_t i;
-
-  pthread_attr_t attr;
-  pthread_attr_init(&attr);
-
-  for (i = 0; i < NUM_HELPERS; i++) {
-    /* set stack address for this worker */
-    void *stack_addr = (void *)(pt_stacks +
-        (NUM_WORKERS + i) * PTHREAD_STACK_SIZE);
-    int ret = pthread_attr_setstack(&attr, stack_addr, PTHREAD_STACK_SIZE);
-    if (ret)
-      perror("FAILED TO SET STACK PROPERTIES"), exit(EXIT_FAILURE);
-
-    ret =
-      pthread_create(&helpers[i].pthread, &attr, &helper_loop, (void *)i);
-    if (ret)
-      perror("FAILED TO CREATE HELPER"), exit(EXIT_FAILURE);
-  }
-}
-
 void helper_team_init()
 {
   helpers = (helper_t *)_malloc(sizeof(helper_t) * NUM_HELPERS);
@@ -161,6 +103,9 @@ void helper_team_init()
   for (i = 0; i < NUM_HELPERS; i++) {
     helpers[i].aggr_timeout_interval = config.node_agg_check_interv;
     netbuffer_init(&helpers[i].tmp_buff, 0, NULL);
+#if NO_RESERVE
+    helpers[i].pending = new std::queue<mtask_t *>();
+#endif
 #if !DTA
     helpers[i].num_mt_res = 0;
     helpers[i].mt_res =
@@ -176,21 +121,73 @@ void helper_team_destroy()
   for (i = 0; i < NUM_HELPERS; i++)
     pthread_join(helpers[i].pthread, NULL);
 
-  for (i = 0; i < NUM_HELPERS; i++)
+  for (i = 0; i < NUM_HELPERS; i++) {
+#if NO_RESERVE
+    delete helpers[i].pending;
+#endif
     netbuffer_destroy(&helpers[i].tmp_buff);
+  }
+
   free(helpers);
 }
 
+#if NO_RESERVE
+INLINE mtask_t *helper_alloc_pending() {
+	mtask_t *res = (mtask_t *)_malloc(sizeof(mtask_t));
+	res->args = res->largs = NULL;
+	res->args_bytes = res->max_args_bytes = 0;
+	return res;
+}
+
+INLINE void helper_free_pending(mtask_t *mt) {
+	if(mt->args)
+		free(mt->args);
+	free(mt);
+}
+
+INLINE void helper_add_pending(mtask_t *mt, uint32_t hid) {
+	helpers[hid].pending->push(mt);
+}
+
+/*
+ * return true if some task is still pending
+ */
+INLINE bool helper_flush_pending(uint32_t hid) {
+	mtask_t *pend = NULL, *sched = NULL;
+	while(!helpers[hid].pending->empty()) {
+#if !DTA
+        if(!qmpmc_pop(&mtm.mtasks_pool, (void **)&sched))
+#else
+	    if(!(sched = dta_mtask_alloc(&dtam.h_alloc[hid])))
+#endif
+	    	return true;
+        pend = helpers[hid].pending->front();
+        mtm_copy_mtask(sched, pend);
+        mtm_push_mtask(sched, config.num_workers + hid);
+        helpers[hid].pending->pop();
+        helper_free_pending(pend);
+        sched = NULL;
+	}
+	return false;
+}
+#endif
+
 INLINE void helper_enqueue_mtask(cmd_gen_t * gcmd, mtask_type_t type, 
-    uint32_t gpid, uint32_t hid)
+    uint32_t gpid, bool pending, uint32_t hid)
 {
   mtask_t *mt = NULL;
+
 #if !DTA
-  while (!qmpmc_pop(&mtm.mtasks_pool, (void **)&mt))
-    /* while there is work in the queue */;
+  while (pending || !qmpmc_pop(&mtm.mtasks_pool, (void **)&mt)) {
 #else
-	while(!(mt = dta_mtask_alloc(&dtam.h_alloc[hid])));
+	while(pending || !(mt = dta_mtask_alloc(&dtam.h_alloc[hid]))) {
 #endif
+#if NO_RESERVE
+		mt = helper_alloc_pending();
+		pending = true;
+		break;
+#endif
+	}
 
   // TODO add timeout warning message
   _assert(mt != NULL);
@@ -199,21 +196,21 @@ INLINE void helper_enqueue_mtask(cmd_gen_t * gcmd, mtask_type_t type,
     case MTASK_EXECUTE:
       {
         cmd_exec_t *c = (cmd_exec_t *) gcmd;
-        mtm_push_mtask_queue(mt, (void *)((uint64_t) c->func_ptr),
+        mtm_fill_mtask(mt, (void *)((uint64_t) c->func_ptr),
             c->args_bytes, c + 1, gpid, c->nest_lev,
             MTASK_EXECUTE, 0, 1, 1, GMT_DATA_NULL,
             (uint32_t *) ((uint64_t) (c->ret_size_ptr)),
             (void *)((uint64_t) c->ret_buf_ptr),
-            c->handle, hid + config.num_workers);
+            c->handle);
       }
       break;
     case MTASK_FOR:
       {
         cmd_for_t *c = (cmd_for_t *) gcmd;
-        mtm_push_mtask_queue(mt, (void *)((uint64_t) c->func_ptr),
+        mtm_fill_mtask(mt, (void *)((uint64_t) c->func_ptr),
             c->args_bytes, c + 1, gpid, c->nest_lev, MTASK_FOR, 
             c->it_start, c->it_end, c->it_per_task, c->gmt_array,
-            NULL, NULL, c->handle, hid + config.num_workers);
+            NULL, NULL, c->handle);
       }
       break;
     default:
@@ -221,9 +218,16 @@ INLINE void helper_enqueue_mtask(cmd_gen_t * gcmd, mtask_type_t type,
       break;
   }
 
+#if NO_RESERVE
+  if(pending) {
+	  helper_add_pending(mt, hid);
+	  return;
+  }
+#endif
+  mtm_push_mtask(mt, hid + config.num_workers);
 }
 
-#if DTA
+#if DTA && !NO_RESERVE
 INLINE uint32_t helper_mtasks_reserve(uint32_t n, uint32_t hid) {
        return dta_mtasks_reserve(&dtam.h_alloc[hid], n);
 }
@@ -255,7 +259,7 @@ INLINE void helper_send_rep_value(uint32_t rnid,
   agm_set_cmd_data(rnid, hid + NUM_WORKERS, NULL, 0);
 }
 
-INLINE void helper_check_in_buffers(uint32_t hid)
+INLINE void helper_check_in_buffers(bool postpone, uint32_t hid)
 {
   net_buffer_t *recv_buff = comm_server_pop_recv_buff(hid);
   if (recv_buff == NULL) {
@@ -423,7 +427,7 @@ INLINE void helper_check_in_buffers(uint32_t hid)
             cmd_exec_t *c = (cmd_exec_t *) gcmd;
             //mtask_enq++;
             helper_enqueue_mtask(gcmd, MTASK_EXECUTE,
-                uthread_get_gtid(c->pid, rnid), hid);
+                uthread_get_gtid(c->pid, rnid), postpone, hid);
             cmds_ptr += sizeof(*c) + c->args_bytes;
             COUNT_EVENT(HELPER_CMD_EXEC_PREEMPT);
           }
@@ -459,12 +463,13 @@ INLINE void helper_check_in_buffers(uint32_t hid)
           {
             cmd_for_t *c = (cmd_for_t *) gcmd;
             helper_enqueue_mtask(gcmd, MTASK_FOR,
-                uthread_get_gtid(c->pid, rnid), hid);
+                uthread_get_gtid(c->pid, rnid), postpone,  hid);
             //mtask_enq++;
             cmds_ptr += sizeof(*c) + c->args_bytes;
             COUNT_EVENT(HELPER_CMD_FOR_LOOP);
           }
           break;
+#if !NO_RESERVE
         case GMT_CMD_MTASKS_RES_REQ:
           {
             /*sending itb_reply */
@@ -493,6 +498,7 @@ INLINE void helper_check_in_buffers(uint32_t hid)
             COUNT_EVENT(HELPER_CMD_MTASKS_RES_REPLY);
           }
           break;
+#endif
         case GMT_CMD_HANDLE_CHECK_TERM:
           {
             cmd_check_handle_t *c = (cmd_check_handle_t *) gcmd;
@@ -701,6 +707,75 @@ INLINE void helper_check_in_buffers(uint32_t hid)
 #endif
   //     if (mtask_enq > 0)
   //         _DEBUG("mtask_enq %d\n", mtask_enq);
+}
+
+void *helper_loop(void *arg)
+{
+  uint32_t hid = (uint64_t) arg;
+
+  if (config.thread_pinning) {
+    uint32_t thread_id = get_thread_id();
+    uint32_t core = select_core(thread_id, config.num_cores,
+        config.stride_pinning);
+    pin_thread(core);
+    if (node_id == 0) {
+      DEBUG0(printf("pining CPU %u with pthread_id %u\n",
+            core, thread_id););
+    }
+  }
+
+  uint32_t part_num_nodes = CEILING(num_nodes, NUM_HELPERS);
+  helpers[hid].part_start_node_id = part_num_nodes * hid;
+  helpers[hid].part_end_node_id = MIN(part_num_nodes * (hid + 1), num_nodes);
+
+  uint64_t aggr_timeout = rdtsc();
+  uint64_t cmdb_timeout = rdtsc();
+
+  bool postpone = false;
+  while (!helper_stop_flag) {
+    /* check general  timeout */
+    START_TIME(ts1);
+    aggr_timeout = helper_check_aggreg_timeout(hid, aggr_timeout);
+    END_TIME(ts1, HELPER_SERVICE_AGGR);
+
+    START_TIME(ts2);
+    agm_check_cmdb_timeout(hid + NUM_WORKERS, &cmdb_timeout);
+    END_TIME(ts2, HELPER_SERVICE_CMDB);
+
+#if NO_RESERVE
+    /* try flushing pending tasks */
+    postpone = helper_flush_pending(hid);
+#endif
+
+    /* check for incoming buffers */
+    START_TIME(ts3);
+    helper_check_in_buffers(postpone, hid);
+    END_TIME(ts3, HELPER_SERVICE_BUF);
+  }
+  pthread_exit(NULL);
+}
+
+void helper_team_run()
+{
+  helper_stop_flag = false;
+  uint64_t i;
+
+  pthread_attr_t attr;
+  pthread_attr_init(&attr);
+
+  for (i = 0; i < NUM_HELPERS; i++) {
+    /* set stack address for this worker */
+    void *stack_addr = (void *)(pt_stacks +
+        (NUM_WORKERS + i) * PTHREAD_STACK_SIZE);
+    int ret = pthread_attr_setstack(&attr, stack_addr, PTHREAD_STACK_SIZE);
+    if (ret)
+      perror("FAILED TO SET STACK PROPERTIES"), exit(EXIT_FAILURE);
+
+    ret =
+      pthread_create(&helpers[i].pthread, &attr, &helper_loop, (void *)i);
+    if (ret)
+      perror("FAILED TO CREATE HELPER"), exit(EXIT_FAILURE);
+  }
 }
 
 #endif

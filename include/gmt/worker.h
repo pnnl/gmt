@@ -312,6 +312,7 @@ INLINE void worker_scheduler_state(uint32_t wid)
       tot_nest_lev += uthreads[i].nest_lev;
     }
 
+#if !NO_RESERVE
 #if !DTA
     uint64_t mtask_avail = mtm.num_mtasks_avail;
 #endif
@@ -322,22 +323,28 @@ INLINE void worker_scheduler_state(uint32_t wid)
       sprintf(tmp, "r%d*=%ld ", i, mtm.num_mtasks_res_array[i]);
       pstr = strcat(pstr, tmp);
     }
+#endif
 
     _DEBUG(" Tasks: not_init %d, %u run, %u not_start, %u wait_data, "
         "%u wait_mtasks, %u wait_handles, %u throt, "
         "avg nest %.2f/%d, iters_todo* %ld "
+#if !NO_RESERVE
 #if !DTA
         "- mtask_avail* %ld (*=estimate)"
 #endif
-    	"- %s\n",
-        not_init, running, not_started, waiting_data,
+    	"- %s\n"
+#endif
+        , not_init, running, not_started, waiting_data,
         waiting_mtasks, waiting_handles, throttling,
         ((float)tot_nest_lev / NUM_UTHREADS_PER_WORKER) + 1, MAX_NESTING,
         mtm_total_its()
+#if !NO_RESERVE
 #if !DTA
 		, mtask_avail
 #endif
-		, str);
+		, str
+#endif
+        );
 
     _assert(not_init + running + not_started + waiting_data +
         waiting_mtasks + waiting_handles + throttling ==
@@ -463,6 +470,7 @@ INLINE void worker_wait_handle(uint32_t tid, uint32_t wid, gmt_handle_t handle)
   mtm_handle_push(handle, gtid);
 }
 
+#if !NO_RESERVE
 INLINE bool worker_reserve_mtasks(uint32_t tid, uint32_t wid, uint32_t rnid)
 {
   _assert(rnid != node_id);
@@ -483,21 +491,26 @@ INLINE bool worker_reserve_mtasks(uint32_t tid, uint32_t wid, uint32_t rnid)
   }
   return true;
 }
+#endif
 
 INLINE mtask_t *worker_mtask_alloc(uint32_t wid)
 {
 #if !DTA
   if (workers[wid].num_mt_res == 0) {
     uint32_t cnt = config.mtasks_res_block_loc;
+#if !NO_RESERVE
     if (num_nodes > 1)
       cnt = mtm_reserve_mtask_block(cnt);
+#endif
 
     workers[wid].num_mt_res = qmpmc_pop_n(&mtm.mtasks_pool,
         (void **)workers[wid].mt_res,
         cnt);
+#if !NO_RESERVE
     if (num_nodes > 1 && workers[wid].num_mt_res != cnt)
       __sync_add_and_fetch(&mtm.num_mtasks_avail,
           cnt - workers[wid].num_mt_res);
+#endif
   }
 
   if (workers[wid].num_mt_res == 0)
@@ -517,12 +530,14 @@ INLINE void worker_mtask_free(uint32_t wid, mtask_t * mt)
     qmpmc_push_n(&mtm.mtasks_pool, (void **)workers[wid].mt_ret,
         workers[wid].num_mt_ret);
     workers[wid].num_mt_ret = 0;
+#if !NO_RESERVE
     if (num_nodes > 1) {
       int64_t avail = __sync_add_and_fetch(&mtm.num_mtasks_avail,
           config.mtasks_res_block_loc);
       _assert(avail <= mtm.pool_size);
       _unused(avail);
     }
+#endif
   }
 #else
   dta_mtask_free(&dtam.w_alloc[wid], mt);

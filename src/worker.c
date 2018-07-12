@@ -159,7 +159,7 @@ void *worker_loop(void *args)
     if (node_id == 0 && wid == 0) {
         mtask_t *mt = worker_mtask_alloc(wid);
         _assert(mt != NULL);
-        mtm_push_mtask_queue(mt, (void *)gmt_main, gm_args_bytes, gm_args, -1, 0,
+        mtm_schedule_mtask(mt, (void *)gmt_main, gm_args_bytes, gm_args, -1, 0,
                              MTASK_GMT_MAIN, gm_argc, gm_argc + 1, 1,
                              GMT_DATA_NULL, NULL, NULL, GMT_HANDLE_NULL, wid);
     }

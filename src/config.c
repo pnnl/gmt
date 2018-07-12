@@ -69,7 +69,9 @@ void config_init()
 #if !DTA
     config.mtasks_res_block_loc = 32;
 #endif
+#if !NO_RESERVE
     config.mtasks_res_block_rem = 1024;
+#endif
     config.limit_parallelism = false;
     config.thread_pinning = false;
     config.release_uthread_stack = false;
@@ -166,9 +168,11 @@ options_t options[] = {
      "Number of mtasks queues "
      "(an mtask corresponds to one or more tasks that run on the uthreads)"},
      
+#if !NO_RESERVE
      {"--gmt_mtasks_res_block_rem", OPT_UINT32, true, &config.mtasks_res_block_rem,
      {NULL}, true,
      "Block of mtasks each node will try to reserve form remote nodes"},
+#endif
 
 #if !DTA
      {"--gmt_mtasks_res_block_loc", OPT_UINT32, true, &config.mtasks_res_block_loc,
@@ -518,8 +522,8 @@ void config_check()
     _check(config.max_handles_per_node * num_nodes < UINT32_MAX);
     _check(CMD_BLOCK_SIZE <= (1 << ARGS_SIZE_BITS));
     _check(NUM_WORKERS * NUM_UTHREADS_PER_WORKER <= (1 << TID_BITS));
-#if DTA
-    _check(NUM_HELPERS <= 1);
+#if DTA && !NO_RESERVE
+    _check(NUM_HELPERS == 1);
 #endif
 
 //     /* if state is null un-protect */

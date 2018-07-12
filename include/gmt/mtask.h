@@ -166,15 +166,19 @@ typedef struct mtasks_manager_t {
     /** actual array of the mtasks of size MAX_MTASKS_PER_THREAD */
     mtask_t *mtasks;
 
+#if !NO_RESERVE
     /** number of mtasks available on this node */
     volatile int64_t num_mtasks_avail;
 #endif
+#endif
 
+#if !NO_RESERVE
     /** Array of mtasks that this node has reserved on each remote node */
     int64_t volatile *num_mtasks_res_array;
 
     /** Array of mtask reservation pending flags one per node */
     bool *mtasks_res_pending;
+#endif
 
     /**  total iterations (mtasks expanded) present on this node 
       used for load balancing */
@@ -205,6 +209,7 @@ INLINE void mtm_mtask_bind_allocator(mtask_t *mt, uint32_t aid) {
 }
 #endif
 
+#if !NO_RESERVE
 /** aquire a reservation slot (if a reservation exists) for the remote node rnid */
 INLINE bool mtm_acquire_reservation(uint32_t rnid)
 {
@@ -258,6 +263,7 @@ INLINE void mtm_unlock_reservation(uint32_t rnid)
     _unused(ret);
     _assert(ret);
 }
+#endif
 
 /*
  * functions for (re)schedule/get work to/from mtasks queues
@@ -287,13 +293,13 @@ INLINE bool mtm_pop_mtask_queue(uint32_t cnt, mtask_t ** mt, uint32_t dst_id)
 #endif
 }
 
-INLINE void mtm_push_mtask_queue(mtask_t * mt, void *func, uint32_t args_bytes,
+INLINE void mtm_fill_mtask(mtask_t * mt, void *func, uint32_t args_bytes,
                                  const void *args, int32_t gpid,
                                  uint64_t nest_lev, mtask_type_t type,
                                  uint64_t start_it, uint64_t end_it,
                                  uint64_t step_it, gmt_data_t gmt_array,
                                  uint32_t * ret_buf_size_ptr, void *ret_buf,
-                                 gmt_handle_t handle, uint32_t src_id)
+                                 gmt_handle_t handle)
 {
     mt->func = func;
     mt->type = type;
@@ -322,8 +328,11 @@ INLINE void mtm_push_mtask_queue(mtask_t * mt, void *func, uint32_t args_bytes,
         mt->args = NULL;
         mt->args_bytes = 0;
     }
+}
 
-    __sync_fetch_and_add(&mtm.total_its, end_it - start_it);
+INLINE void mtm_push_mtask(mtask_t * mt, uint32_t src_id)
+{
+    __sync_fetch_and_add(&mtm.total_its, mt->end_it - mt->start_it);
 #if ALL_TO_ALL
 	spsc_push(&mtm.mtasks_queues[src_id][mt->qid], mt);
 #elif !SCHEDULER
@@ -332,7 +341,26 @@ INLINE void mtm_push_mtask_queue(mtask_t * mt, void *func, uint32_t args_bytes,
 #else
     spsc_push(&mtm.mtasks_sched_in_queues[src_id], mt);
 #endif
-    INCR_EVENT(WORKER_ITS_ENQUEUE_LOCAL, end_it - start_it);
+    INCR_EVENT(WORKER_ITS_ENQUEUE_LOCAL, mt->end_it - mt->start_it);
+}
+
+INLINE void mtm_schedule_mtask(mtask_t * mt, void *func, uint32_t args_bytes,
+                                 const void *args, int32_t gpid,
+                                 uint64_t nest_lev, mtask_type_t type,
+                                 uint64_t start_it, uint64_t end_it,
+                                 uint64_t step_it, gmt_data_t gmt_array,
+                                 uint32_t * ret_buf_size_ptr, void *ret_buf,
+                                 gmt_handle_t handle, uint32_t src_id)
+{
+    mtm_fill_mtask(mt, func, args_bytes, args, gpid, nest_lev, type, start_it,
+        end_it, step_it, gmt_array, ret_buf_size_ptr, ret_buf, handle);
+    mtm_push_mtask(mt, src_id);
+}
+
+INLINE void mtm_copy_mtask(mtask_t *dst, mtask_t *src) {
+	mtm_fill_mtask(dst, src->func, src->args_bytes, src->args, src->gpid,
+			src->nest_lev, src->type, src->start_it, src->end_it, src->step_it,
+			src->gmt_array, src->ret_buf_size_ptr, src->ret_buf, src->handle);
 }
 
 INLINE int64_t mtm_total_its()
