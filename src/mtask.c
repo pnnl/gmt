@@ -35,6 +35,7 @@
 #include "gmt/mtask.h"
 #include "gmt/network.h"
 #include "gmt/queue.h"
+#include "gmt/helper.h"
 #if DTA
 #include "gmt/dta.h"
 #endif
@@ -147,6 +148,37 @@ void mtm_init()
 void mtm_destroy()
 {
 	uint32_t i;
+
+#if TRACE_ALLOC
+       /* memory footprint */
+       char mem_fname[128];
+       sprintf(mem_fname, "mem_n%d", node_id);
+       FILE *mf = fopen(mem_fname, "w");
+       uint64_t mf_mtasks = 0;
+#if !DTA
+       mf_mtasks = mtm.pool_size;
+#else
+       mf_mtasks += dta_mem_footprint(dtam.h_alloc);
+       for(i = 0; i < config.num_workers; ++i)
+               mf_mtasks += dta_mem_footprint(&dtam.w_alloc[i]);
+#endif
+       fprintf(mf, "[n=%u] scheduling = %llu", node_id, mf_mtasks);
+       fprintf(mf, " (%g MB)\n",
+                       (float) (mf_mtasks * sizeof(mtask_t)) / (1 << 20));
+#if NO_RESERVE
+	uint64_t nr_max = 0;
+	for (i = 0; i < config.num_helpers; ++i) {
+		nr_max += helpers[i].nr_max;
+		fprintf(mf, "[n=%u h=%u] no-reserve buffering = %llu", node_id, i,
+				helpers[i].nr_max);
+		fprintf(mf, " (%g MB)\n",
+				(float) (helpers[i].nr_max * sizeof(mtask_t)) / (1 << 20));
+	}
+	fprintf(mf, "[n=%u] no-reserve buffering = %llu", node_id, nr_max);
+	fprintf(mf, " (%g MB)\n", (float) (nr_max * sizeof(mtask_t)) / (1 << 20));
+#endif
+       fclose(mf);
+#endif
 
 	/* destroy structures for task allocation */
 #if !DTA

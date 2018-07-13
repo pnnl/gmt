@@ -213,6 +213,10 @@ INLINE void dta_mtask_free(dta_t *dta, mtask_t *mt) {
 	spsc_buffered_push(dta->out_rec_queues[mt->allocator_id], mt);
 }
 
+INLINE uint64_t dta_mem_footprint(dta_t *dta) {
+    return dta->num_chunks * config.dta_chunk_size;
+}
+
 void dtam_init();
 void dtam_destroy();
 

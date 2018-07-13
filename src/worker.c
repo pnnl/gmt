@@ -239,20 +239,55 @@ void worker_team_destroy()
     uint32_t i;
 
 #if TRACE_QUEUES
-    char tfname[128];
-    sprintf(tfname, "qt_workers_n%d", node_id);
-    FILE *tf = fopen(tfname, "w");
-    uint64_t pop_hits = 0, pop_misses = 0;
-    for (i = 0; i < NUM_WORKERS; i++) {
-    	pop_misses += workers[i].pop_misses;
-    	pop_hits += workers[i].pop_hits;
-    	fprintf(tf, "worker-TQ [n=%u w=%u] mtasks: pop-hits = %llu\tpop-misses = %llu\n",
-    	       node_id, i, workers[i].pop_hits, workers[i].pop_misses);
-    }
-    fprintf(tf, "node-TQ [n=%u] mtasks: pop-hits = %llu\tpop-misses = %llu",
-               node_id, pop_hits, pop_misses);
-    fprintf(tf, "\t(hit-rate = %g%%)\n", (float)pop_hits / (pop_hits + pop_misses) * 100);
-    fclose(tf);
+	char qt_fname[128];
+	sprintf(qt_fname, "qt_workers_n%d", node_id);
+	FILE *qtf = fopen(qt_fname, "w");
+	uint64_t pop_hits = 0, pop_misses = 0, rpush_hits = 0, rpush_misses = 0;
+	for (i = 0; i < NUM_WORKERS; i++) {
+		/* local */
+		pop_misses += workers[i].pop_misses;
+		pop_hits += workers[i].pop_hits;
+		fprintf(qtf, "[n=%u w=%u] pop-hits = %llu\tpop-misses = %llu\n",
+				node_id, i, workers[i].pop_hits, workers[i].pop_misses);
+		/* remote */
+		rpush_misses += workers[i].rpush_misses;
+		rpush_hits += workers[i].rpush_hits;
+		fprintf(qtf, "[n=%u w=%u] rpush-hits = %llu\trpush-misses = %llu\n",
+				node_id, i, workers[i].rpush_hits, workers[i].rpush_misses);
+	}
+	/* local */
+	fprintf(qtf, "[n=%u] pop-hits = %llu\tpop-misses = %llu", node_id, pop_hits,
+			pop_misses);
+	if (pop_misses + pop_hits)
+		fprintf(qtf, "\t(hit-rate = %g%%)\n",
+				(float) pop_hits / (pop_hits + pop_misses) * 100);
+	/* remote */
+	fprintf(qtf, "[n=%u] rpush-hits = %llu\trpush-misses = %llu", node_id,
+			rpush_hits, rpush_misses);
+	if (rpush_misses + rpush_hits)
+		fprintf(qtf, "\t(hit-rate = %g%%)\n",
+				(float) rpush_hits / (rpush_hits + rpush_misses) * 100);
+	else
+		fprintf(qtf, "\n");
+	fclose(qtf);
+#endif
+
+#if TRACE_ALLOC
+	char at_fname[128];
+	sprintf(at_fname, "at_workers_n%d", node_id);
+	FILE *atf = fopen(at_fname, "w");
+	uint64_t alloc_hit = 0, alloc_mss = 0;
+	for (i = 0; i < NUM_WORKERS; i++) {
+		alloc_hit += workers[i].alloc_hit;
+		alloc_mss += workers[i].alloc_mss;
+		fprintf(atf, "[n=%u w=%u] alloc_hit = %llu\talloc_mss = %llu\n",
+				node_id, i, workers[i].alloc_hit, workers[i].alloc_mss);
+	}
+	fprintf(atf, "[n=%u] alloc_hit = %llu\talloc_mss = %llu", node_id,
+			alloc_hit, alloc_mss);
+	fprintf(atf, "\t(hit-rate = %g%%)\n",
+			(float) alloc_hit / (alloc_hit + alloc_mss) * 100);
+	fclose(atf);
 #endif
 
     for (i = 0; i < NUM_WORKERS; i++) {

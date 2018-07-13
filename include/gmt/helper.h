@@ -69,6 +69,18 @@ typedef struct helper_tag {
     mtask_t **mt_res;
     uint32_t num_mt_res;
 #endif
+
+#if TRACE_QUEUES
+  uint64_t rpop_misses = 0, rpop_hits = 0;
+#endif
+
+#if TRACE_ALLOC
+  uint64_t alloc_hit = 0, alloc_mss = 0;
+  uint64_t ralloc_hit = 0, ralloc_mss = 0;
+#if NO_RESERVE
+  uint64_t nr_max = 0, nr_cnt = 0;
+#endif
+#endif
 } helper_t;
 #endif
 

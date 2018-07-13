@@ -86,6 +86,11 @@ typedef struct worker_t {
 
 #if TRACE_QUEUES
   uint64_t pop_misses = 0, pop_hits = 0;
+  uint64_t rpush_misses = 0, rpush_hits = 0;
+#endif
+
+#if TRACE_ALLOC
+  uint64_t alloc_hit = 0, alloc_mss = 0;
 #endif
 } worker_t;
 
@@ -475,6 +480,9 @@ INLINE bool worker_reserve_mtasks(uint32_t tid, uint32_t wid, uint32_t rnid)
 {
   _assert(rnid != node_id);
   if (!mtm_acquire_reservation(rnid)) {
+#if TRACE_QUEUES
+    workers[wid].rpush_misses++;
+#endif
     if (mtm_lock_reservation(rnid)) {
       cmd_gen_t *cmd =
         (cmd_gen_t *) agm_get_cmd(rnid, wid, sizeof(cmd_gen_t), 0,
@@ -489,12 +497,16 @@ INLINE bool worker_reserve_mtasks(uint32_t tid, uint32_t wid, uint32_t rnid)
     uthreads[tid].tstatus = TASK_RUNNING;
     return false;
   }
+#if TRACE_QUEUES
+  workers[wid].rpush_hits++;
+#endif
   return true;
 }
 #endif
 
 INLINE mtask_t *worker_mtask_alloc(uint32_t wid)
 {
+	mtask_t *res;
 #if !DTA
   if (workers[wid].num_mt_res == 0) {
     uint32_t cnt = config.mtasks_res_block_loc;
@@ -514,12 +526,19 @@ INLINE mtask_t *worker_mtask_alloc(uint32_t wid)
   }
 
   if (workers[wid].num_mt_res == 0)
-    return NULL;
+    res = NULL;
   else
-    return workers[wid].mt_res[--workers[wid].num_mt_res];
+    res = workers[wid].mt_res[--workers[wid].num_mt_res];
 #else
-  return dta_mtask_alloc(&dtam.w_alloc[wid]);
+  res = dta_mtask_alloc(&dtam.w_alloc[wid]);
 #endif
+#if TRACE_ALLOC
+  if(res)
+    ++workers[wid].alloc_hit;
+  else
+    ++workers[wid].alloc_mss;
+#endif
+  return res;
 }
 
 INLINE void worker_mtask_free(uint32_t wid, mtask_t * mt)

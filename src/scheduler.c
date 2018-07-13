@@ -120,7 +120,7 @@ void scheduler_destroy()
     char tfname[128];
     sprintf(tfname, "qt_scheduler_n%d", node_id);
     FILE *tf = fopen(tfname, "w");
-    	fprintf(tf, "scheduler-TQ [n=%u] mtasks: pop-hits = %llu\tpop-misses = %llu",
+    fprintf(tf, "[n=%u] mtasks: pop-hits = %llu\tpop-misses = %llu",
     	       node_id, scheduler.pop_hits, scheduler.pop_misses);
     fprintf(tf, "\t(hit-rate = %g%%)\n", (float)scheduler.pop_hits / (scheduler.pop_hits + scheduler.pop_misses) * 100);
     fclose(tf);

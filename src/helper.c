@@ -128,6 +128,67 @@ void helper_team_destroy()
     netbuffer_destroy(&helpers[i].tmp_buff);
   }
 
+#if TRACE_QUEUES
+	char qt_fname[128];
+	sprintf(qt_fname, "qt_helpers_n%d", node_id);
+	FILE *qtf = fopen(qt_fname, "w");
+	uint64_t rpop_misses = 0, rpop_hits = 0;
+	for (i = 0; i < NUM_HELPERS; i++) {
+		/* rbuf_pop */
+		rpop_misses += helpers[i].rpop_misses;
+		rpop_hits += helpers[i].rpop_hits;
+		fprintf(qtf, "[n=%u h=%u] rbuf_pop_misses = %llu\trbuf_pop_hits = %llu",
+				node_id, i, helpers[i].rpop_misses, helpers[i].rpop_hits);
+		fprintf(qtf, "\t(hit-rate = %g%%)\n",
+				(float) helpers[i].rpop_hits
+						/ (helpers[i].rpop_hits + helpers[i].rpop_misses)
+						* 100);
+	}
+	fprintf(qtf, "[n=%u] rbuf_pop_misses = %llu\trbuf_pop_hits = %llu", node_id,
+			rpop_misses, rpop_hits);
+	fprintf(qtf, "\t(hit-rate = %g%%)\n",
+			(float) rpop_hits / (rpop_hits + rpop_misses) * 100);
+	fclose(qtf);
+#endif
+
+#if TRACE_ALLOC
+	char at_fname[128];
+	sprintf(at_fname, "at_helpers_n%d", node_id);
+	FILE *atf = fopen(at_fname, "w");
+	uint64_t alloc_hit = 0, alloc_mss = 0, ralloc_hit = 0, ralloc_mss = 0;
+	for(i = 0; i < NUM_HELPERS; ++i) {
+	    /* local */
+		alloc_hit += helpers[i].alloc_hit;
+		alloc_mss += helpers[i].alloc_mss;
+		fprintf(atf, "[n=%u h=%u] alloc_hit = %llu\talloc_mss = %llu", node_id,
+				i, helpers[i].alloc_hit, helpers[i].alloc_mss);
+		fprintf(atf, "\t(hit-rate = %g%%)\n",
+				(float) helpers[i].alloc_hit
+						/ (helpers[i].alloc_hit + helpers[i].alloc_mss) * 100);
+		/* remote */
+		ralloc_hit += helpers[i].ralloc_hit;
+		ralloc_mss += helpers[i].ralloc_mss;
+		fprintf(atf, "[n=%u h=%u] ralloc_hit = %llu\tralloc_mss = %llu",
+				node_id, i, helpers[i].ralloc_hit, helpers[i].ralloc_mss);
+		fprintf(atf, "\t(hit-rate = %g%%)\n",
+				(float) helpers[i].ralloc_hit
+						/ (helpers[i].ralloc_hit + helpers[i].ralloc_mss)
+						* 100);
+	}
+	/* local */
+	fprintf(atf, "[n=%u] alloc_hit = %llu\talloc_mss = %llu", node_id,
+			alloc_hit, alloc_mss);
+	fprintf(atf, "\t(hit-rate = %g%%)\n",
+			(float) alloc_hit / (alloc_hit + alloc_mss) * 100);
+	/* remote */
+	fprintf(atf, "[n=%u] ralloc_hit = %llu\tralloc_mss = %llu", node_id,
+			ralloc_hit, ralloc_mss);
+	fprintf(atf, "\t(hit-rate = %g%%)\n",
+			(float) ralloc_hit / (ralloc_hit + ralloc_mss) * 100);
+
+	fclose(atf);
+#endif
+
   free(helpers);
 }
 
@@ -167,6 +228,9 @@ INLINE bool helper_flush_pending(uint32_t hid) {
         helpers[hid].pending->pop();
         helper_free_pending(pend);
         sched = NULL;
+#if TRACE_ALLOC
+       --helpers[hid].nr_cnt;
+#endif
 	}
 	return false;
 }
@@ -185,9 +249,19 @@ INLINE void helper_enqueue_mtask(cmd_gen_t * gcmd, mtask_type_t type,
 #if NO_RESERVE
 		mt = helper_alloc_pending();
 		pending = true;
+#if TRACE_ALLOC
+		uint64_t nr_max = helpers[hid].nr_max;
+        helpers[hid].nr_max = std::max(nr_max, ++helpers[hid].nr_cnt);
+#endif
+#if TRACE_ALLOC
+        ++helpers[hid].alloc_mss;
+#endif
 		break;
 #endif
 	}
+#if TRACE_ALLOC
+    helpers[hid].alloc_hit += !pending;
+#endif
 
   // TODO add timeout warning message
   _assert(mt != NULL);
@@ -263,10 +337,15 @@ INLINE void helper_check_in_buffers(bool postpone, uint32_t hid)
 {
   net_buffer_t *recv_buff = comm_server_pop_recv_buff(hid);
   if (recv_buff == NULL) {
+#if TRACE_QUEUES
+	helpers[hid].rpop_misses++;
+#endif
     sched_yield();
     return;
   }
-  //int mtask_enq = 0;
+#if TRACE_QUEUES
+  helpers[hid].rpop_hits++;
+#endif
 
 #if ENABLE_HELPER_BUFF_COPY
   net_buffer_t *buff = &helpers[hid].tmp_buff;
@@ -491,8 +570,16 @@ INLINE void helper_check_in_buffers(bool postpone, uint32_t hid)
         case GMT_CMD_MTASKS_RES_REPLY:
           {
             cmd64_t *c = (cmd64_t *) gcmd;
-            if (c->value > 0)
+            if (c->value > 0) {
+#if TRACE_ALLOC
+              ++helpers[hid].ralloc_hit;
+#endif
               mtm_mark_reservation_block(rnid, c->value);
+            }
+#if TRACE_ALLOC
+            else
+              ++helpers[hid].ralloc_mss;
+#endif
             mtm_unlock_reservation(rnid);
             cmds_ptr += sizeof(*c);
             COUNT_EVENT(HELPER_CMD_MTASKS_RES_REPLY);
