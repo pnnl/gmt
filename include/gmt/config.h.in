@@ -69,10 +69,10 @@
 #define ENABLE_TIMING                0
 
 /* trace queue stats */
-#define TRACE_QUEUES                 1
+#define TRACE_QUEUES                 0
 
 /* trace allocation stats */
-#define TRACE_ALLOC                  1
+#define TRACE_ALLOC                  0
 
 /* enable gmt_ucontext and disable libc ucontext (slower) */
 #ifdef __linux__
