@@ -47,7 +47,7 @@
 #include "gmt/mtask.h"
 #include "gmt/queue.h"
 
-#define PTR_PER_CACHE_LINE (CACHE_LINE_SIZE/sizeof(void *))
+DEFINE_QUEUE_SPSC(spsc, void *);
 
 typedef struct dta_chunk_tag {
 	mtask_t *mtasks;
@@ -65,36 +65,34 @@ typedef struct dta_tag {
 	uint32_t max_chunks, num_chunks;
 
 	/*
-	 * local mtask cache, backed by either:
-	 * - a chunk from the local chunk list
-	 * - the input-buffer for the recycling bin
+	 * mtask caching from the local chunk list
 	 */
 	mtask_t *local_cache;
 	uint32_t local_cache_idx;
 	dta_chunk_t *chunk_last_cached;
-	static constexpr uint32_t rec_buffering = PTR_PER_CACHE_LINE;
 
 	/*
 	 * memory recycling:
 	 * - upon freeing, the calling allocator gives the mtasks memory back to the
 	 *   allocator that allocated the memory, by pushing it into the
-	 *   corresponding output recycling queue (through cache-line buffering)
+	 *   corresponding recycling queue
 	 * - upon allocating, in case of cache miss, the calling allocator try to
-	 *   get some (cache-line-buffered) mtasks from each input recycling queue
+	 *   get tasks from the recycling queues
 	 */
 	spsc_t *in_rec_queues;
 	uint32_t in_rec_deg; //number of input recycling queues
 	mtask_t **in_rec_buf; //input recycling buffer
-	uint32_t rec_buf_idx;
 	uint32_t out_rec_deg; //number of output recycling queues
 	spsc_t **out_rec_queues; //(pointers to) output recycling queues
 
+#if !NO_RESERVE
 	/*
 	 * a counter to track the mtasks available for allocation, that can be used
 	 * for reservation purposes. The counter is signed so that overbooking is
 	 * supported.
 	 */
 	int64_t num_avail;
+#endif
 
 	/*
 	 * round-robin counters
@@ -129,6 +127,7 @@ INLINE void dta_add_chunk(dta_t *dta) {
 	++dta->num_chunks;
 }
 
+#if !NO_RESERVE
 INLINE int64_t dta_mtasks_reserve(dta_t *dta, int64_t n) {
 	/* try satisfying with the already available mtasks */
 	if(dta->num_avail >= n) {
@@ -154,16 +153,12 @@ INLINE int64_t dta_mtasks_reserve(dta_t *dta, int64_t n) {
 	}
 	return res;
 }
+#endif
 
 INLINE mtask_t *dta_mtask_alloc(dta_t *dta) {
 	/* try from cached local chunk */
 	if(dta->local_cache && dta->local_cache_idx < config.dta_chunk_size) {
 		return (&(dta->local_cache[dta->local_cache_idx++]));
-	}
-
-	/* try from cached recycled chunk */
-	if (dta->in_rec_buf && dta->rec_buf_idx < dta->rec_buffering) {
-		return (dta->in_rec_buf[dta->rec_buf_idx++]);
 	}
 
 	/* try caching another local chunk */
@@ -177,25 +172,20 @@ INLINE mtask_t *dta_mtask_alloc(dta_t *dta) {
 	/* try caching from recycle queues */
 	uint32_t qcnt = 0, src;
 	spsc_t *qin;
-	mtask_t **dst_mt;
-	uint32_t cache_cnt = 0;
-	do {
+	mtask_t *dst_mt;
+	while (qcnt++ < dta->in_rec_deg) {
 		src = dta->qin_rr_cnt;
 		qin = &dta->in_rec_queues[src];
-		if (!spsc_empty(qin)) {
-			/* fill the buffer from the input queue */
-			do {
-				dst_mt = &dta->in_rec_buf[cache_cnt];
-				cache_cnt += spsc_pop(qin, (void **) dst_mt);
-			} while (cache_cnt < dta->rec_buffering);
-			dta->rec_buf_idx = 0;
-			dta->num_avail += dta->rec_buffering;
-			return dta->in_rec_buf[dta->rec_buf_idx++];
+		if (spsc_pop(qin, (void **) &dst_mt)) {
+#if !NO_RESERVE
+			++dta->num_avail;
+#endif
+			return dst_mt;
 		}
 		/* skip to the next recycle-input queue */
 		if (++dta->qin_rr_cnt == dta->in_rec_deg)
 			dta->qin_rr_cnt = 0;
-	} while (qcnt++ < dta->in_rec_deg);
+	}
 
 	/* try creating and caching a chunk */
 	if (dta->num_chunks < dta->max_chunks) {
@@ -210,7 +200,7 @@ INLINE mtask_t *dta_mtask_alloc(dta_t *dta) {
 }
 
 INLINE void dta_mtask_free(dta_t *dta, mtask_t *mt) {
-	spsc_buffered_push(dta->out_rec_queues[mt->allocator_id], mt);
+	spsc_push(dta->out_rec_queues[mt->allocator_id], mt);
 }
 
 INLINE uint64_t dta_mem_footprint(dta_t *dta) {

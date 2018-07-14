@@ -310,133 +310,49 @@ INLINE int qmpmc_pop_n(qmpmc_t * q, void **item, uint32_t n)
 }
 
 /*******************************************************************/
-/*       FastFlow bounded single producer single consumer          */
-/*******************************************************************/
-#include <new>
-
-#define SWSR_MULTIPUSH
-#include "ff/buffer.hpp"
-
-typedef ff::SWSR_Ptr_Buffer ff_bspsc_t;
-
-INLINE void spsc_init(ff_bspsc_t * q, uint32_t size)
-{
-	new (q) ff::SWSR_Ptr_Buffer(size);
-	q->init();
-}
-
-INLINE void spsc_destroy(ff_bspsc_t *q)
-{
-    q->~SWSR_Ptr_Buffer();
-}
-
-INLINE void spsc_push(ff_bspsc_t * q, void *item)
-{
-    q->push(item);
-}
-
-INLINE void spsc_buffered_push(ff_bspsc_t * q, void *item)
-{
-    q->mpush(item);
-}
-
-INLINE int spsc_pop(ff_bspsc_t * q, void **item)
-{
-    return q->pop(item);
-}
-
-INLINE bool spsc_empty(ff_bspsc_t * q)
-{
-    return q->empty();
-}
-
-INLINE uint32_t spsc_size(ff_bspsc_t * q)
-{
-    return q->length();
-}
-
-/*******************************************************************/
-/*      FastFlow unbounded single producer single consumer         */
-/*******************************************************************/
-#define uSWSR_MULTIPUSH
-#include "ff/ubuffer.hpp"
-
-typedef ff::uSWSR_Ptr_Buffer ff_uspsc_t;
-
-INLINE void spsc_init(ff_uspsc_t * q, uint32_t)
-{
-	new (q) ff::uSWSR_Ptr_Buffer(8192, true);
-	q->init();
-}
-
-INLINE void spsc_destroy(ff_uspsc_t *q)
-{
-    q->~uSWSR_Ptr_Buffer();
-}
-
-INLINE void spsc_push(ff_uspsc_t * q, void *item)
-{
-    q->push(item);
-}
-
-INLINE void spsc_buffered_push(ff_uspsc_t * q, void *item)
-{
-    q->mpush(item);
-}
-
-INLINE int spsc_pop(ff_uspsc_t * q, void **item)
-{
-    return q->pop(item);
-}
-
-INLINE bool spsc_empty(ff_uspsc_t * q)
-{
-    return q->empty();
-}
-
-INLINE uint32_t spsc_size(ff_uspsc_t * q)
-{
-    return q->length();
-}
-
-#if FF_BSPSC
-       typedef ff_bspsc_t spsc_t;
-#elif FF_USPSC
-       typedef ff_uspsc_t spsc_t;
-#endif
-
-/*******************************************************************/
 /*               single producer single consumer                   */
 /*******************************************************************/
 
-#define DEFINE_QUEUE_SPSC(NAME,TYPE,SIZE)  \
+#define DEFINE_QUEUE_SPSC(NAME,TYPE)  \
 typedef struct NAME##_t {\
     TYPE volatile * array;\
     volatile uint32_t tail __align ( CACHE_LINE ); /* input index*/\
     volatile uint32_t head __align ( CACHE_LINE ); /* output index*/\
+    uint32_t size;\
 } NAME##_t;\
 \
 \
-INLINE void NAME##_init(NAME##_t * q, uint32_t = 0) {\
+INLINE void NAME##_init(NAME##_t * q, uint32_t size_) {\
+	q->size = NEXT_POW2(size_+IS_PO2(size_));\
     q->head = 0;\
     q->tail = 0;\
-    q->array = (TYPE volatile *) _malloc(NEXT_POW2(SIZE+IS_PO2(SIZE)) * sizeof(TYPE));\
+    q->array = (TYPE volatile *) _malloc(q->size * sizeof(TYPE));\
     uint32_t i;\
-    for ( i = 0 ; i < NEXT_POW2(SIZE+IS_PO2(SIZE)); i++)\
+    for ( i = 0 ; i < q->size; i++)\
         q->array[i]=0;\
 }\
 \
+INLINE uint32_t NAME##_size(NAME##_t *q) {\
+    uint32_t tpread = q->head, tpwrite = q->tail;\
+	int64_t len = tpwrite - tpread;\
+	if (len > 0) return (uint32_t)len;\
+	if (len < 0) return (uint32_t)(q->size + len);\
+	if (q->array[tpwrite] == NULL) return 0;\
+	return q->size;\
+}\
+\
 INLINE void NAME##_push(NAME##_t * q, TYPE item) {\
-    uint32_t next_tail = ( q->tail + 1 ) & ( NEXT_POW2(SIZE+IS_PO2(SIZE)) - 1 );\
+    uint32_t next_tail = ( q->tail + 1 ) & (q->size - 1 );\
     q->array[q->tail] = item;\
     q->tail = next_tail;\
 }\
 \
 INLINE int NAME##_pop(NAME##_t * q, TYPE* item) {\
-    if ( q->head == q->tail )\
+    if ( !q->array[q->head] )\
         return 0;\
     *item = q->array[q->head];\
-    q->head = ( q->head + 1 ) & ( NEXT_POW2(SIZE+IS_PO2(SIZE)) - 1 );\
+    q->array[q->head] = NULL;\
+    q->head = ( q->head + 1 ) & ( q->size - 1 );\
     return 1;\
 }\
 \

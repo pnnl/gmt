@@ -42,10 +42,14 @@ dta_manager_t dtam;
 void dta_init_(dta_t *dta, uint32_t id, uint32_t in_rdeg, uint32_t out_rdeg,
 		uint32_t max_chunks, uint32_t prealloc_chunks) {
 	uint32_t i;
-	dta->id = id;
+	uint32_t max_tasks;
 
+	dta->id = id;
 	dta->max_chunks = max_chunks;
-	dta->num_avail = config.dta_chunk_size * max_chunks;
+	max_tasks = config.dta_chunk_size * max_chunks;
+#if !NO_RESERVE
+	dta->num_avail = max_tasks;
+#endif
 
 	/* preallocate chunks and set up the cache */
 	dta->chunk_last = dta->chunks_head = dta_make_chunk(dta);
@@ -61,9 +65,7 @@ void dta_init_(dta_t *dta, uint32_t id, uint32_t in_rdeg, uint32_t out_rdeg,
 	dta->in_rec_deg = in_rdeg;
 	dta->in_rec_queues = (spsc_t *)_malloc(in_rdeg * sizeof(spsc_t));
 	for(i = 0; i < in_rdeg; ++i)
-		spsc_init(&dta->in_rec_queues[i], dta->num_avail);
-	dta->in_rec_buf = (mtask_t **)_malloc(dta->rec_buffering * sizeof(mtask_t *));
-	dta->rec_buf_idx = dta->rec_buffering;
+		spsc_init(&dta->in_rec_queues[i], max_tasks);
 
 	/* output-side recycling */
 	dta->out_rec_deg = out_rdeg;
@@ -110,8 +112,6 @@ void dta_destroy(dta_t *dta) {
 	for (i = 0; i < dta->in_rec_deg; ++i)
 		spsc_destroy(&dta->in_rec_queues[i]);
 	free(dta->in_rec_queues);
-	free(dta->in_rec_buf);
-
 
 	/* destroy mtasks memory */
 	dta_clear_chunks(dta);

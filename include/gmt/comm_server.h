@@ -52,7 +52,7 @@
 
 DEFINE_QUEUE(pend_queue, net_buffer_t *,
              NUM_BUFFS_PER_CHANNEL * NUM_SEND_CHANNELS);
-DEFINE_QUEUE_SPSC(ch_queue, net_buffer_t *, NUM_BUFFS_PER_CHANNEL);
+DEFINE_QUEUE_SPSC(ch_queue, net_buffer_t *);
 
 typedef struct channel_tag {
     ch_queue_t queue;

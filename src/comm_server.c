@@ -43,8 +43,8 @@ comm_server_t cs;
 
 void comm_server_init_channel(channel_t * ch)
 {
-    ch_queue_init(&ch->queue);
-    ch_queue_init(&ch->pool);
+    ch_queue_init(&ch->queue, NUM_BUFFS_PER_CHANNEL);
+    ch_queue_init(&ch->pool, NUM_BUFFS_PER_CHANNEL);
     ch->current_buff = NULL;
     ch->buffers = (net_buffer_t*)_malloc(sizeof(net_buffer_t) * NUM_BUFFS_PER_CHANNEL);
     uint32_t i;
