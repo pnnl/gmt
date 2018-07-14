@@ -102,10 +102,6 @@
 /* enable scheduling through all-to-all worker communication */
 #define ALL_TO_ALL                   0
 
-/* select the SPSC implementation for scheduling mtasks */
-#define FF_BSPSC                     1
-#define FF_USPSC                     0
-
 /*
  * task allocation
  */
