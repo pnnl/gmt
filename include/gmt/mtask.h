@@ -145,14 +145,18 @@ typedef struct g_handle_t {
 /** DEFINE for handleid_queue multiple producers and multiple consumers */
 DEFINE_QUEUE_MPMC(handleid_queue, uint64_t, config.max_handles_per_node);
 
+#if SCHEDULER || ALL_TO_ALL
+DEFINE_QUEUE_SPSC(sched_queue, void *);
+#endif
+
 typedef struct mtasks_manager_t {
     /* structures for task scheduling */
 #if ALL_TO_ALL
-	spsc_t **mtasks_queues;
+	sched_queue_t **mtasks_queues;
 #elif !SCHEDULER
 	qmpmc_t *mtasks_queue;
 #else
-	spsc_t *mtasks_sched_in_queues, *mtasks_sched_out_queues;
+	sched_queue_t *mtasks_sched_in_queues, *mtasks_sched_out_queues;
 #endif
 	uint32_t worker_in_degree;
 
@@ -271,25 +275,25 @@ INLINE void mtm_unlock_reservation(uint32_t rnid)
 INLINE void mtm_return_mtask_queue(mtask_t * mt, uint32_t src_id)
 {
 #if ALL_TO_ALL
-	spsc_push(&mtm.mtasks_queues[src_id][mt->qid], mt);
+	sched_queue_push(&mtm.mtasks_queues[src_id][mt->qid], mt);
 #elif !SCHEDULER
 	_unused(src_id);
     qmpmc_push(&mtm.mtasks_queue[mt->qid], mt);
 #else
-    spsc_push(&mtm.mtasks_sched_in_queues[src_id], mt);
+    sched_queue_push(&mtm.mtasks_sched_in_queues[src_id], mt);
 #endif
 }
 
 INLINE bool mtm_pop_mtask_queue(uint32_t cnt, mtask_t ** mt, uint32_t dst_id)
 {
 #if ALL_TO_ALL
-	return spsc_pop(&mtm.mtasks_queues[cnt][dst_id], (void **) mt);
+	return sched_queue_pop(&mtm.mtasks_queues[cnt][dst_id], (void **) mt);
 #elif !SCHEDULER
 	_unused(dst_id);
     return qmpmc_pop(&mtm.mtasks_queue[cnt], (void **) mt);
 #else
     _unused(cnt);
-    return spsc_pop(&mtm.mtasks_sched_out_queues[dst_id], (void **) mt);
+    return sched_queue_pop(&mtm.mtasks_sched_out_queues[dst_id], (void **) mt);
 #endif
 }
 
@@ -334,12 +338,12 @@ INLINE void mtm_push_mtask(mtask_t * mt, uint32_t src_id)
 {
     __sync_fetch_and_add(&mtm.total_its, mt->end_it - mt->start_it);
 #if ALL_TO_ALL
-	spsc_push(&mtm.mtasks_queues[src_id][mt->qid], mt);
+    sched_queue_push(&mtm.mtasks_queues[src_id][mt->qid], mt);
 #elif !SCHEDULER
     _unused(src_id);
     qmpmc_push(&mtm.mtasks_queue[mt->qid], mt);
 #else
-    spsc_push(&mtm.mtasks_sched_in_queues[src_id], mt);
+    sched_queue_push(&mtm.mtasks_sched_in_queues[src_id], mt);
 #endif
     INCR_EVENT(WORKER_ITS_ENQUEUE_LOCAL, mt->end_it - mt->start_it);
 }

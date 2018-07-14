@@ -71,11 +71,11 @@ void mtm_init()
 #if ALL_TO_ALL
     uint32_t j;
     mtm.worker_in_degree = config.num_workers + config.num_helpers;
-    mtm.mtasks_queues = (spsc_t **)_malloc(sizeof(spsc_t *) * (config.num_workers + config.num_helpers));
+    mtm.mtasks_queues = (sched_queue_t **)_malloc(sizeof(sched_queue_t *) * (config.num_workers + config.num_helpers));
     for (i = 0; i < config.num_workers + config.num_helpers; i++) {
-    	mtm.mtasks_queues[i] = (spsc_t *)_malloc(sizeof(spsc_t) * config.num_workers);
+    	mtm.mtasks_queues[i] = (sched_queue_t *)_malloc(sizeof(sched_queue_t) * config.num_workers);
     	for(j = 0; j < config.num_workers; ++j)
-    		spsc_init(&mtm.mtasks_queues[i][j], config.mtasks_per_queue);
+    		sched_queue_init(&mtm.mtasks_queues[i][j], config.mtasks_per_queue);
     }
 #elif !SCHEDULER
     mtm.worker_in_degree = config.num_mtasks_queues;
@@ -84,14 +84,14 @@ void mtm_init()
         qmpmc_init(&mtm.mtasks_queue[i], config.mtasks_per_queue);
 #else
     mtm.worker_in_degree = 1;
-    mtm.mtasks_sched_in_queues = (spsc_t *)_malloc(sizeof(spsc_t) * (config.num_workers + config.num_helpers));
-    mtm.mtasks_sched_out_queues = (spsc_t *)_malloc(sizeof(spsc_t) * config.num_workers);
+    mtm.mtasks_sched_in_queues = (sched_queue_t *)_malloc(sizeof(sched_queue_t) * (config.num_workers + config.num_helpers));
+    mtm.mtasks_sched_out_queues = (sched_queue_t *)_malloc(sizeof(sched_queue_t) * config.num_workers);
     for (i = 0; i < config.num_workers; i++) {
-    	spsc_init(&mtm.mtasks_sched_in_queues[i], mtm.pool_size);
-    	spsc_init(&mtm.mtasks_sched_out_queues[i], config.mtasks_per_queue);
+    	sched_queue_init(&mtm.mtasks_sched_in_queues[i], mtm.pool_size);
+    	sched_queue_init(&mtm.mtasks_sched_out_queues[i], config.mtasks_per_queue);
     }
     for (; i < config.num_workers + config.num_helpers; i++)
-    	spsc_init(&mtm.mtasks_sched_in_queues[i], mtm.pool_size);
+    	sched_queue_init(&mtm.mtasks_sched_in_queues[i], mtm.pool_size);
 #endif
 
     /* initialize structures for handle management */
@@ -195,7 +195,7 @@ void mtm_destroy()
     uint32_t j;
     for (i = 0; i < config.num_workers + config.num_helpers; i++) {
     	for(j = 0; j < config.num_workers; ++j)
-    	    spsc_destroy(&mtm.mtasks_queues[i][j]);
+    		sched_queue_destroy(&mtm.mtasks_queues[i][j]);
         free(mtm.mtasks_queues[i]);
     }
     free(mtm.mtasks_queues);
@@ -205,11 +205,11 @@ void mtm_destroy()
     free(mtm.mtasks_queue);
 #else
     for (i = 0; i < config.num_workers; i++) {
-    	spsc_destroy(&mtm.mtasks_sched_in_queues[i]);
-    	spsc_destroy(&mtm.mtasks_sched_out_queues[i]);
+    	sched_queue_destroy(&mtm.mtasks_sched_in_queues[i]);
+    	sched_queue_destroy(&mtm.mtasks_sched_out_queues[i]);
     }
     for (; i < config.num_workers + config.num_helpers; i++)
-    	spsc_destroy(&mtm.mtasks_sched_in_queues[i]);
+    	sched_queue_destroy(&mtm.mtasks_sched_in_queues[i]);
     free(mtm.mtasks_sched_in_queues);
     free(mtm.mtasks_sched_out_queues);
 #endif

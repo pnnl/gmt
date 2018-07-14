@@ -41,8 +41,6 @@
 #include "gmt/scheduler.h"
 #include "gmt/mtask.h"
 
-typedef qmpmc_t sched_queue_t;
-
 volatile bool scheduler_stop_flag;
 scheduler_t scheduler;
 
@@ -67,11 +65,11 @@ void *scheduler_loop(void *)
 
   mtask_t *buf;
   while (!scheduler_stop_flag) {
-	if (spsc_pop(&mtm.mtasks_sched_in_queues[scheduler.in_rr_cnt], (void **)&buf)) {
+	if (sched_queue_pop(&mtm.mtasks_sched_in_queues[scheduler.in_rr_cnt], (void **)&buf)) {
 #ifdef TRACE_QUEUES
         ++scheduler.pop_hits;
 #endif
-        spsc_push(&mtm.mtasks_sched_out_queues[buf->qid], buf);
+        sched_queue_push(&mtm.mtasks_sched_out_queues[buf->qid], buf);
 	}
 	else {
 #ifdef TRACE_QUEUES
