@@ -58,9 +58,12 @@ void config_init()
 #if ENABLE_SINGLE_NODE_ONLY
     config.num_workers = config.num_cores;
     config.num_helpers = 0;
-#else
+#elif !DTA
     config.num_workers = MAX(1,(config.num_cores-1)/2);
     config.num_helpers = MAX(1,(config.num_cores-1)/2);
+#else
+    config.num_workers = config.num_cores - 1;
+    config.num_helpers = 1;
 #endif
     config.num_uthreads_per_worker = 1024;
     config.max_nesting = 2;
