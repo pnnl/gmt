@@ -42,11 +42,12 @@ dta_manager_t dtam;
 void dta_init_(dta_t *dta, uint32_t id, uint32_t in_rdeg, uint32_t out_rdeg,
 		uint32_t max_chunks, uint32_t prealloc_chunks) {
 	uint32_t i;
-	uint32_t max_tasks;
+	uint32_t max_tasks = config.dta_chunk_size * max_chunks;
 
 	dta->id = id;
 	dta->max_chunks = max_chunks;
-	max_tasks = config.dta_chunk_size * max_chunks;
+	dta->mapping_rr_cnt = 0;
+	dta->qin_rr_cnt = 0;
 #if !NO_RESERVE
 	dta->num_avail = max_tasks;
 #endif
@@ -71,9 +72,6 @@ void dta_init_(dta_t *dta, uint32_t id, uint32_t in_rdeg, uint32_t out_rdeg,
 	dta->out_rec_deg = out_rdeg;
 	if(out_rdeg)
 		dta->out_rec_queues = (spsc_t **) _malloc(out_rdeg * sizeof(spsc_t *));
-
-	dta->mapping_rr_cnt = 0;
-	dta->qin_rr_cnt = 0;
 }
 
 void dta_worker_init(dta_t *dta, uint32_t wid) {
