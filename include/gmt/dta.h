@@ -180,8 +180,8 @@ INLINE mtask_t *dta_mtask_alloc(dta_t *dta) {
 #if !NO_RESERVE
 			++dta->num_avail;
 #endif
-			return dst_mt;
-		}
+          return dst_mt;
+        }
 		/* skip to the next recycle-input queue */
 		if (++dta->qin_rr_cnt == dta->in_rec_deg)
 			dta->qin_rr_cnt = 0;
@@ -200,12 +200,15 @@ INLINE mtask_t *dta_mtask_alloc(dta_t *dta) {
 }
 
 INLINE void dta_mtask_free(dta_t *dta, mtask_t *mt) {
-	spsc_push(dta->out_rec_queues[mt->allocator_id], mt);
+  spsc_push(dta->out_rec_queues[mt->allocator_id], mt);
 }
 
 INLINE uint64_t dta_mem_footprint(dta_t *dta) {
     return dta->num_chunks * config.dta_chunk_size;
 }
+
+uint32_t max_worker_chunks();
+uint32_t max_helper_chunks();
 
 void dtam_init();
 void dtam_destroy();

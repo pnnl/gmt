@@ -40,6 +40,9 @@
 #include "gmt/utils.h"
 #include "gmt/network.h"
 #include "gmt/commands.h"
+#if DTA
+#include "gmt/dta.h"
+#endif
 
 config_t config;
 
@@ -67,7 +70,7 @@ void config_init()
 #endif
     config.num_uthreads_per_worker = 1024;
     config.max_nesting = 2;
-    config.mtasks_per_queue = 8 * 1024;    
+    config.mtasks_per_queue = 1 << 20;
     config.num_mtasks_queues = MAX(2,config.num_workers/2);    
 #if !DTA
     config.mtasks_res_block_loc = 32;
@@ -525,8 +528,12 @@ void config_check()
     _check(config.max_handles_per_node * num_nodes < UINT32_MAX);
     _check(CMD_BLOCK_SIZE <= (1 << ARGS_SIZE_BITS));
     _check(NUM_WORKERS * NUM_UTHREADS_PER_WORKER <= (1 << TID_BITS));
-#if DTA && !NO_RESERVE
+#if DTA
+#if !NO_RESERVE
     _check(NUM_HELPERS == 1);
+#endif
+    _check(max_worker_chunks());
+    _check(max_helper_chunks());
 #endif
 
 //     /* if state is null un-protect */

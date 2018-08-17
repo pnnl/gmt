@@ -118,26 +118,37 @@ void dta_destroy(dta_t *dta) {
 void dta_rec_bind(dta_t *dta, dta_t *other, uint32_t rid) {
 	_assert(rid < dta->out_rec_deg);
 	_assert(dta->id < other->in_rec_deg);
-	dta->out_rec_queues[rid] = &other->in_rec_queues[dta->id];
+        dta->out_rec_queues[rid] = &other->in_rec_queues[dta->id];
+}
+
+/*
+ * compute allocation sizing so that no more than
+ * config.num_mtasks_queues * config.mtasks_per_queue
+ * mtasks are allocated to be scheduled
+ */
+uint32_t max_worker_chunks() {
+  uint32_t max_worker_pool_size;
+  max_worker_pool_size = config.num_mtasks_queues;
+  max_worker_pool_size *= config.mtasks_per_queue;
+  max_worker_pool_size /= (config.num_workers * num_nodes);
+  return max_worker_pool_size / config.dta_chunk_size;
+}
+
+uint32_t max_helper_chunks() {
+  uint32_t max_worker_pool_size, max_helper_pool_size;
+  max_helper_pool_size = config.num_mtasks_queues;
+  max_helper_pool_size *= config.mtasks_per_queue;
+  max_helper_pool_size *= (num_nodes - 1);
+  max_helper_pool_size /= config.num_helpers;
+  max_helper_pool_size /= num_nodes;
+  return max_helper_pool_size / config.dta_chunk_size;
 }
 
 void dtam_init() {
 	uint32_t i;
 
-	/*
-	 * compute sizing so that no more than
-	 * config.num_mtasks_queues * config.mtasks_per_queue
-	 * mtasks are allocated to be scheduled
-	 */
-	uint32_t max_worker_pool_size, max_helper_pool_size;
-	max_worker_pool_size = config.num_mtasks_queues;
-	max_worker_pool_size *= config.mtasks_per_queue;
-	max_worker_pool_size /= (config.num_workers * num_nodes);
-	max_helper_pool_size = config.num_workers * max_worker_pool_size;
-	max_helper_pool_size *= (num_nodes - 1);
-	max_helper_pool_size /= config.num_helpers;
-	dtam.max_worker_chunks = max_worker_pool_size / config.dta_chunk_size;
-	dtam.max_helper_chunks = max_helper_pool_size / config.dta_chunk_size;
+	dtam.max_worker_chunks = max_worker_chunks();
+	dtam.max_helper_chunks = max_helper_chunks();
 
 	/* initialize per-worker allocators */
 	dtam.w_alloc = (dta_t *)_malloc(config.num_workers * sizeof(dta_t));
