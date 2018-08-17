@@ -533,7 +533,7 @@ void config_check()
     _check(NUM_HELPERS == 1);
 #endif
     _check(max_worker_chunks());
-    _check(max_helper_chunks());
+    _check(num_nodes == 1 || max_helper_chunks());
 #endif
 
 //     /* if state is null un-protect */
