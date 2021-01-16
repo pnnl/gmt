@@ -120,6 +120,10 @@ typedef struct PACKED_STR {
     /* this is at the bottom of this structure so we don't interfere with
      *other information above when doing fetch and add */
     uint64_t executed_it;
+
+#if DTA
+    uint32_t allocator_id;
+#endif
 } mtask_t;
 
 typedef enum {
@@ -141,23 +145,44 @@ typedef struct g_handle_t {
 /** DEFINE for handleid_queue multiple producers and multiple consumers */
 DEFINE_QUEUE_MPMC(handleid_queue, uint64_t, config.max_handles_per_node);
 
+#if SCHEDULER || ALL_TO_ALL
+DEFINE_QUEUE_SPSC(sched_queue, void *);
+#endif
+
 typedef struct mtasks_manager_t {
+    /* structures for task scheduling */
+#if ALL_TO_ALL
+	sched_queue_t **mtasks_queues;
+#elif !SCHEDULER
+	qmpmc_t *mtasks_queue;
+#else
+	sched_queue_t *mtasks_sched_in_queues, *mtasks_sched_out_queues;
+#endif
+	uint32_t worker_in_degree;
 
-    /** queue/pool for the mtasks */
-    qmpmc_t *mtasks_queue;
+	/* structures for task allocation */
+	uint32_t pool_size;
+
+#if !DTA
+	/** mtasks pool */
     qmpmc_t mtasks_pool;
-
-    /** number of mtasks available on this node */
-    volatile int64_t num_mtasks_avail;
 
     /** actual array of the mtasks of size MAX_MTASKS_PER_THREAD */
     mtask_t *mtasks;
 
+#if !NO_RESERVE
+    /** number of mtasks available on this node */
+    volatile int64_t num_mtasks_avail;
+#endif
+#endif
+
+#if !NO_RESERVE
     /** Array of mtasks that this node has reserved on each remote node */
     int64_t volatile *num_mtasks_res_array;
 
     /** Array of mtask reservation pending flags one per node */
     bool *mtasks_res_pending;
+#endif
 
     /**  total iterations (mtasks expanded) present on this node 
       used for load balancing */
@@ -179,7 +204,16 @@ extern mtask_manager_t mtm;
 
 void mtm_init();
 void mtm_destroy();
+void mtm_mtask_init(mtask_t *, uint32_t, uint32_t *);
+void mtm_mtask_destroy(mtask_t *);
 
+#if DTA
+INLINE void mtm_mtask_bind_allocator(mtask_t *mt, uint32_t aid) {
+       mt->allocator_id = aid;
+}
+#endif
+
+#if !NO_RESERVE
 /** aquire a reservation slot (if a reservation exists) for the remote node rnid */
 INLINE bool mtm_acquire_reservation(uint32_t rnid)
 {
@@ -197,6 +231,7 @@ INLINE void mtm_mark_reservation_block(uint32_t rnid, uint64_t value)
     __sync_add_and_fetch(&mtm.num_mtasks_res_array[rnid],  value);
 }
 
+#if !DTA
 /** reserve a block of mtask locally */
 INLINE uint64_t mtm_reserve_mtask_block(uint32_t res_size)
 {
@@ -213,6 +248,7 @@ INLINE uint64_t mtm_reserve_mtask_block(uint32_t res_size)
     }
     return res_size;
 }
+#endif
 
 /** lock reservation of mtasks on a given remote node, this prevents multiple
  * uthreads to attempt concurrent requests of a block of MTASKS */
@@ -231,22 +267,37 @@ INLINE void mtm_unlock_reservation(uint32_t rnid)
     _unused(ret);
     _assert(ret);
 }
+#endif
 
-
-INLINE void mtm_return_mtask_queue(mtask_t * mt)
+/*
+ * functions for (re)schedule/get work to/from mtasks queues
+ */
+INLINE void mtm_return_mtask_queue(mtask_t * mt, uint32_t src_id)
 {
+#if ALL_TO_ALL
+	sched_queue_push(&mtm.mtasks_queues[src_id][mt->qid], mt);
+#elif !SCHEDULER
+	_unused(src_id);
     qmpmc_push(&mtm.mtasks_queue[mt->qid], mt);
+#else
+    sched_queue_push(&mtm.mtasks_sched_in_queues[src_id], mt);
+#endif
 }
 
-INLINE bool mtm_pop_mtask_queue(uint32_t cnt, mtask_t ** mt)
+INLINE bool mtm_pop_mtask_queue(uint32_t cnt, mtask_t ** mt, uint32_t dst_id)
 {
-    _assert(cnt < config.num_mtasks_queues);
-    if (qmpmc_pop(&mtm.mtasks_queue[cnt], (void **) mt))
-        return true;
-    return false;
+#if ALL_TO_ALL
+	return sched_queue_pop(&mtm.mtasks_queues[cnt][dst_id], (void **) mt);
+#elif !SCHEDULER
+	_unused(dst_id);
+    return qmpmc_pop(&mtm.mtasks_queue[cnt], (void **) mt);
+#else
+    _unused(cnt);
+    return sched_queue_pop(&mtm.mtasks_sched_out_queues[dst_id], (void **) mt);
+#endif
 }
 
-INLINE void mtm_push_mtask_queue(mtask_t * mt, void *func, uint32_t args_bytes,
+INLINE void mtm_fill_mtask(mtask_t * mt, void *func, uint32_t args_bytes,
                                  const void *args, int32_t gpid,
                                  uint64_t nest_lev, mtask_type_t type,
                                  uint64_t start_it, uint64_t end_it,
@@ -281,10 +332,39 @@ INLINE void mtm_push_mtask_queue(mtask_t * mt, void *func, uint32_t args_bytes,
         mt->args = NULL;
         mt->args_bytes = 0;
     }
+}
 
-    __sync_fetch_and_add(&mtm.total_its, end_it - start_it);
+INLINE void mtm_push_mtask(mtask_t * mt, uint32_t src_id)
+{
+    __sync_fetch_and_add(&mtm.total_its, mt->end_it - mt->start_it);
+#if ALL_TO_ALL
+    sched_queue_push(&mtm.mtasks_queues[src_id][mt->qid], mt);
+#elif !SCHEDULER
+    _unused(src_id);
     qmpmc_push(&mtm.mtasks_queue[mt->qid], mt);
-    INCR_EVENT(WORKER_ITS_ENQUEUE_LOCAL, end_it - start_it);
+#else
+    sched_queue_push(&mtm.mtasks_sched_in_queues[src_id], mt);
+#endif
+    INCR_EVENT(WORKER_ITS_ENQUEUE_LOCAL, mt->end_it - mt->start_it);
+}
+
+INLINE void mtm_schedule_mtask(mtask_t * mt, void *func, uint32_t args_bytes,
+                                 const void *args, int32_t gpid,
+                                 uint64_t nest_lev, mtask_type_t type,
+                                 uint64_t start_it, uint64_t end_it,
+                                 uint64_t step_it, gmt_data_t gmt_array,
+                                 uint32_t * ret_buf_size_ptr, void *ret_buf,
+                                 gmt_handle_t handle, uint32_t src_id)
+{
+    mtm_fill_mtask(mt, func, args_bytes, args, gpid, nest_lev, type, start_it,
+        end_it, step_it, gmt_array, ret_buf_size_ptr, ret_buf, handle);
+    mtm_push_mtask(mt, src_id);
+}
+
+INLINE void mtm_copy_mtask(mtask_t *dst, mtask_t *src) {
+	mtm_fill_mtask(dst, src->func, src->args_bytes, src->args, src->gpid,
+			src->nest_lev, src->type, src->start_it, src->end_it, src->step_it,
+			src->gmt_array, src->ret_buf_size_ptr, src->ret_buf, src->handle);
 }
 
 INLINE int64_t mtm_total_its()

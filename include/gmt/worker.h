@@ -47,7 +47,9 @@
 #include "gmt/aggregation.h"
 #include "gmt/gmt_ucontext.h"
 #include "gmt/uthread.h"
-#include "gmt/helper.h"
+#if DTA
+#include "gmt/dta.h"
+#endif
 
 typedef struct worker_t {
   /* queues of uthreads and pool */
@@ -72,13 +74,24 @@ typedef struct worker_t {
   /* pthread used by this worker */
   pthread_t pthread;
 
+#if !DTA
   mtask_t **mt_res;
   uint32_t num_mt_res;
 
   mtask_t **mt_ret;
   uint32_t num_mt_ret;
+#endif
 
   uint32_t rr_cnt;
+
+#if TRACE_QUEUES
+  uint64_t pop_misses = 0, pop_hits = 0;
+  uint64_t rpush_misses = 0, rpush_hits = 0;
+#endif
+
+#if TRACE_ALLOC
+  uint64_t alloc_hit = 0, alloc_mss = 0;
+#endif
 } worker_t;
 
 extern volatile bool workers_stop_flag;
@@ -138,18 +151,24 @@ INLINE void worker_self_execute(uint32_t tid, uint32_t wid)
       && mtm_total_its() != 0) {
     /* find available work */
     mtask_t *mt = NULL;
-    if (!mtm_pop_mtask_queue(workers[wid].rr_cnt, &mt)) {
-      if (++workers[wid].rr_cnt >= config.num_mtasks_queues)
+    if (!mtm_pop_mtask_queue(workers[wid].rr_cnt, &mt, wid)) {
+      if (++workers[wid].rr_cnt >= mtm.worker_in_degree)
         workers[wid].rr_cnt = 0;
+#if TRACE_QUEUES
+      ++workers[wid].pop_misses;
+#endif
       return;
     }
+#if TRACE_QUEUES
+      ++workers[wid].pop_hits;
+#endif
     _assert(mt != NULL);
     _assert(mt->start_it < mt->end_it);
     uint64_t start_it = mt->start_it;
     mt->start_it += mt->step_it;
     mtm_decrease_total_its(MIN(mt->step_it, mt->end_it - start_it));
     if (mt->start_it < mt->end_it)
-      mtm_return_mtask_queue(mt);
+      mtm_return_mtask_queue(mt, wid);
 
     /* save uthread information */
     uthread_t *ut = &uthreads[tid];
@@ -207,11 +226,17 @@ INLINE void worker_check_mtask_queue(uint32_t tid, uint32_t wid)
       if (nt_lim_space == 0)
         break;
       /* check if there is a mt to execute */
-      if (!mtm_pop_mtask_queue(workers[wid].rr_cnt, &mt)) {
-        if (++workers[wid].rr_cnt >= config.num_mtasks_queues)
+      if (!mtm_pop_mtask_queue(workers[wid].rr_cnt, &mt, wid)) {
+#if TRACE_QUEUES
+          ++workers[wid].pop_misses;
+#endif
+        if (++workers[wid].rr_cnt >= mtm.worker_in_degree)
           workers[wid].rr_cnt = 0;
         break;
       }
+#if TRACE_QUEUES
+      ++workers[wid].pop_hits;
+#endif
       _assert(mt != NULL);
       /* record start, end, step iteration for this mtask */
       uint64_t start_it = mt->start_it;
@@ -229,7 +254,7 @@ INLINE void worker_check_mtask_queue(uint32_t tid, uint32_t wid)
       mt->start_it += its;
       /* if this mt is not completed return it on the queue */
       if (mt->start_it < end_it) {
-        mtm_return_mtask_queue(mt);
+        mtm_return_mtask_queue(mt, wid);
       }
 
       enqueued += its;
@@ -292,7 +317,10 @@ INLINE void worker_scheduler_state(uint32_t wid)
       tot_nest_lev += uthreads[i].nest_lev;
     }
 
+#if !NO_RESERVE
+#if !DTA
     uint64_t mtask_avail = mtm.num_mtasks_avail;
+#endif
     char str[2048] = "\0";
     char *pstr = str;
     for (i = 0; i < num_nodes; i++) {
@@ -300,15 +328,28 @@ INLINE void worker_scheduler_state(uint32_t wid)
       sprintf(tmp, "r%d*=%ld ", i, mtm.num_mtasks_res_array[i]);
       pstr = strcat(pstr, tmp);
     }
+#endif
 
     _DEBUG(" Tasks: not_init %d, %u run, %u not_start, %u wait_data, "
         "%u wait_mtasks, %u wait_handles, %u throt, "
         "avg nest %.2f/%d, iters_todo* %ld "
-        "- mtask_avail* %ld - %s (*=estimate)\n",
-        not_init, running, not_started, waiting_data,
+#if !NO_RESERVE
+#if !DTA
+        "- mtask_avail* %ld (*=estimate)"
+#endif
+    	"- %s\n"
+#endif
+        , not_init, running, not_started, waiting_data,
         waiting_mtasks, waiting_handles, throttling,
         ((float)tot_nest_lev / NUM_UTHREADS_PER_WORKER) + 1, MAX_NESTING,
-        mtm_total_its(), mtask_avail, str);
+        mtm_total_its()
+#if !NO_RESERVE
+#if !DTA
+		, mtask_avail
+#endif
+		, str
+#endif
+        );
 
     _assert(not_init + running + not_started + waiting_data +
         waiting_mtasks + waiting_handles + throttling ==
@@ -434,10 +475,14 @@ INLINE void worker_wait_handle(uint32_t tid, uint32_t wid, gmt_handle_t handle)
   mtm_handle_push(handle, gtid);
 }
 
+#if !NO_RESERVE
 INLINE bool worker_reserve_mtasks(uint32_t tid, uint32_t wid, uint32_t rnid)
 {
   _assert(rnid != node_id);
   if (!mtm_acquire_reservation(rnid)) {
+#if TRACE_QUEUES
+    workers[wid].rpush_misses++;
+#endif
     if (mtm_lock_reservation(rnid)) {
       cmd_gen_t *cmd =
         (cmd_gen_t *) agm_get_cmd(rnid, wid, sizeof(cmd_gen_t), 0,
@@ -452,45 +497,70 @@ INLINE bool worker_reserve_mtasks(uint32_t tid, uint32_t wid, uint32_t rnid)
     uthreads[tid].tstatus = TASK_RUNNING;
     return false;
   }
+#if TRACE_QUEUES
+  workers[wid].rpush_hits++;
+#endif
   return true;
 }
+#endif
 
-INLINE mtask_t *worker_pop_mtask_pool(uint32_t wid)
+INLINE mtask_t *worker_mtask_alloc(uint32_t wid)
 {
+	mtask_t *res;
+#if !DTA
   if (workers[wid].num_mt_res == 0) {
     uint32_t cnt = config.mtasks_res_block_loc;
+#if !NO_RESERVE
     if (num_nodes > 1)
       cnt = mtm_reserve_mtask_block(cnt);
+#endif
 
     workers[wid].num_mt_res = qmpmc_pop_n(&mtm.mtasks_pool,
         (void **)workers[wid].mt_res,
         cnt);
+#if !NO_RESERVE
     if (num_nodes > 1 && workers[wid].num_mt_res != cnt)
       __sync_add_and_fetch(&mtm.num_mtasks_avail,
           cnt - workers[wid].num_mt_res);
+#endif
   }
 
   if (workers[wid].num_mt_res == 0)
-    return NULL;
+    res = NULL;
   else
-    return workers[wid].mt_res[--workers[wid].num_mt_res];
+    res = workers[wid].mt_res[--workers[wid].num_mt_res];
+#else
+  res = dta_mtask_alloc(&dtam.w_alloc[wid]);
+#endif
+#if TRACE_ALLOC
+  if(res)
+    ++workers[wid].alloc_hit;
+  else
+    ++workers[wid].alloc_mss;
+#endif
+  return res;
 }
 
-INLINE void worker_push_mtask_pool(uint32_t wid, mtask_t * mt)
+INLINE void worker_mtask_free(uint32_t wid, mtask_t * mt)
 {
+#if !DTA
   workers[wid].mt_ret[workers[wid].num_mt_ret++] = mt;
   if (workers[wid].num_mt_ret == config.mtasks_res_block_loc) {
     qmpmc_push_n(&mtm.mtasks_pool, (void **)workers[wid].mt_ret,
         workers[wid].num_mt_ret);
     workers[wid].num_mt_ret = 0;
+#if !NO_RESERVE
     if (num_nodes > 1) {
       int64_t avail = __sync_add_and_fetch(&mtm.num_mtasks_avail,
           config.mtasks_res_block_loc);
-      _assert(avail <= config.num_mtasks_queues * config.mtasks_per_queue);
+      _assert(avail <= mtm.pool_size);
       _unused(avail);
     }
+#endif
   }
-
+#else
+  dta_mtask_free(&dtam.w_alloc[wid], mt);
+#endif
 }
 
 INLINE void worker_do_for(void *func, uint64_t start_it, uint64_t step_it,

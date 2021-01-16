@@ -40,6 +40,9 @@
 #include "gmt/utils.h"
 #include "gmt/network.h"
 #include "gmt/commands.h"
+#if DTA
+#include "gmt/dta.h"
+#endif
 
 config_t config;
 
@@ -58,24 +61,36 @@ void config_init()
 #if ENABLE_SINGLE_NODE_ONLY
     config.num_workers = config.num_cores;
     config.num_helpers = 0;
-#else
+#elif !DTA
     config.num_workers = MAX(1,(config.num_cores-1)/2);
     config.num_helpers = MAX(1,(config.num_cores-1)/2);
+#else
+    config.num_workers = config.num_cores - 1;
+    config.num_helpers = 1;
 #endif
     config.num_uthreads_per_worker = 1024;
     config.max_nesting = 2;
-    config.mtasks_per_queue = 8 * 1024;    
+    config.mtasks_per_queue = 1 << 20;
     config.num_mtasks_queues = MAX(2,config.num_workers/2);    
+#if !DTA
     config.mtasks_res_block_loc = 32;
+#endif
+#if !NO_RESERVE
     config.mtasks_res_block_rem = 1024;
+#endif
     config.limit_parallelism = false;
-    config.thread_pinning = true;
+    config.thread_pinning = false;
     config.release_uthread_stack = false;
     config.print_stack_break = false;
     config.print_gmt_mem_usage = false;
     config.print_sched_interv = 0;
     config.cmdb_check_interv = 100000;
     config.node_agg_check_interv = 2000000;
+#if DTA
+	config.dta_chunk_size = 1024;
+	config.dta_prealloc_worker_chunks = 32;
+	config.dta_prealloc_helper_chunks = 256;
+#endif
     config.enable_usr_signal = false;
     config.state_name[0] = '\0';
     config.state_populate = 0;
@@ -159,13 +174,17 @@ options_t options[] = {
      "Number of mtasks queues "
      "(an mtask corresponds to one or more tasks that run on the uthreads)"},
      
+#if !NO_RESERVE
      {"--gmt_mtasks_res_block_rem", OPT_UINT32, true, &config.mtasks_res_block_rem,
      {NULL}, true,
      "Block of mtasks each node will try to reserve form remote nodes"},
+#endif
 
+#if !DTA
      {"--gmt_mtasks_res_block_loc", OPT_UINT32, true, &config.mtasks_res_block_loc,
      {NULL}, true,
      "Block of mtasks each worker will try to reserve locally"},
+#endif
      
     {"--gmt_max_handles_per_node", OPT_UINT32, true,
      &config.max_handles_per_node,
@@ -192,6 +211,23 @@ options_t options[] = {
      {NULL}, true,
      "Ticks a helper will wait before aggregating all the commands in a node "
      " in case a communication buffer is never full"},
+
+#if DTA
+	{"--gmt_dta_chunk_size", OPT_UINT32, true,
+	 &config.dta_chunk_size,
+	 {NULL}, true,
+	 "Size of mtasks-chunks for mtasks allocators"},
+
+	{"--gmt_dta_prealloc_worker_chunks", OPT_UINT32, true,
+	 &config.dta_prealloc_worker_chunks,
+	 {NULL}, true,
+	 "Number of pre-allocated chunks for each worker-local allocator"},
+
+	{"--gmt_dta_prealloc_helper_chunks", OPT_UINT32, true,
+	 &config.dta_prealloc_helper_chunks,
+	 {NULL}, true,
+	 "Number of pre-allocated chunks for the helper-local allocator"},
+#endif
 
     {"--gmt_state_name", OPT_STRING, true, &config.state_name, {NULL}, true,
      "State name to restore (or create if it does not exist)"},
@@ -492,6 +528,13 @@ void config_check()
     _check(config.max_handles_per_node * num_nodes < UINT32_MAX);
     _check(CMD_BLOCK_SIZE <= (1 << ARGS_SIZE_BITS));
     _check(NUM_WORKERS * NUM_UTHREADS_PER_WORKER <= (1 << TID_BITS));
+#if DTA
+#if !NO_RESERVE
+    _check(NUM_HELPERS == 1);
+#endif
+    _check(max_worker_chunks());
+    _check(num_nodes == 1 || max_helper_chunks());
+#endif
 
 //     /* if state is null un-protect */
 //     if (config.state_name == NULL)

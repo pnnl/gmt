@@ -309,39 +309,50 @@ INLINE int qmpmc_pop_n(qmpmc_t * q, void **item, uint32_t n)
     return i;
 }
 
-
 /*******************************************************************/
 /*               single producer single consumer                   */
 /*******************************************************************/
 
-#define DEFINE_QUEUE_SPSC(NAME,TYPE,SIZE)  \
+#define DEFINE_QUEUE_SPSC(NAME,TYPE)  \
 typedef struct NAME##_t {\
     TYPE volatile * array;\
     volatile uint32_t tail __align ( CACHE_LINE ); /* input index*/\
     volatile uint32_t head __align ( CACHE_LINE ); /* output index*/\
+    uint32_t size;\
 } NAME##_t;\
 \
 \
-INLINE void NAME##_init(NAME##_t * q) {\
+INLINE void NAME##_init(NAME##_t * q, uint32_t size_) {\
+	q->size = NEXT_POW2(size_+IS_PO2(size_));\
     q->head = 0;\
     q->tail = 0;\
-    q->array = (TYPE volatile *) _malloc(NEXT_POW2(SIZE+IS_PO2(SIZE)) * sizeof(TYPE));\
+    q->array = (TYPE volatile *) _malloc(q->size * sizeof(TYPE));\
     uint32_t i;\
-    for ( i = 0 ; i < NEXT_POW2(SIZE+IS_PO2(SIZE)); i++)\
+    for ( i = 0 ; i < q->size; i++)\
         q->array[i]=0;\
 }\
 \
+INLINE uint32_t NAME##_size(NAME##_t *q) {\
+    uint32_t tpread = q->head, tpwrite = q->tail;\
+	int64_t len = tpwrite - tpread;\
+	if (len > 0) return (uint32_t)len;\
+	if (len < 0) return (uint32_t)(q->size + len);\
+	if (q->array[tpwrite] == NULL) return 0;\
+	return q->size;\
+}\
+\
 INLINE void NAME##_push(NAME##_t * q, TYPE item) {\
-    uint32_t next_tail = ( q->tail + 1 ) & ( NEXT_POW2(SIZE+IS_PO2(SIZE)) - 1 );\
+    uint32_t next_tail = ( q->tail + 1 ) & (q->size - 1 );\
     q->array[q->tail] = item;\
     q->tail = next_tail;\
 }\
 \
 INLINE int NAME##_pop(NAME##_t * q, TYPE* item) {\
-    if ( q->head == q->tail )\
+    if ( !q->array[q->head] )\
         return 0;\
     *item = q->array[q->head];\
-    q->head = ( q->head + 1 ) & ( NEXT_POW2(SIZE+IS_PO2(SIZE)) - 1 );\
+    q->array[q->head] = NULL;\
+    q->head = ( q->head + 1 ) & ( q->size - 1 );\
     return 1;\
 }\
 \

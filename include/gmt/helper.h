@@ -46,6 +46,10 @@
 #include "gmt/timing.h"
 #include "gmt/uthread.h"
 
+#if NO_RESERVE
+#include <queue>
+#endif
+
 #if !(ENABLE_SINGLE_NODE_ONLY)
 typedef struct helper_tag {
     net_buffer_t tmp_buff;
@@ -57,8 +61,26 @@ typedef struct helper_tag {
     uint32_t part_end_node_id;
     uint32_t aggr_timeout_interval;
     
+#if NO_RESERVE
+    std::queue<mtask_t *> *pending;
+#endif
+
+#if !DTA
     mtask_t **mt_res;
     uint32_t num_mt_res;
+#endif
+
+#if TRACE_QUEUES
+  uint64_t rpop_misses = 0, rpop_hits = 0;
+#endif
+
+#if TRACE_ALLOC
+  uint64_t alloc_hit = 0, alloc_mss = 0;
+  uint64_t ralloc_hit = 0, ralloc_mss = 0;
+#if NO_RESERVE
+  uint64_t nr_max = 0, nr_cnt = 0;
+#endif
+#endif
 } helper_t;
 #endif
 
@@ -98,8 +120,6 @@ INLINE void helper_send_exec_completed(uint32_t rnid, uint32_t thid,
         memcpy(cmd + 1, loc_ret_buf, ret_size_value);
     agm_set_cmd_data(rnid, thid, NULL, 0);
 }
-
-INLINE void helper_check_in_buffers(uint32_t hid);
 
 
 #endif

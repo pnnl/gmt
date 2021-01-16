@@ -68,6 +68,12 @@
 /* enable timing */
 #define ENABLE_TIMING                0
 
+/* trace queue stats */
+#define TRACE_QUEUES                 0
+
+/* trace allocation stats */
+#define TRACE_ALLOC                  0
+
 /* enable gmt_ucontext and disable libc ucontext (slower) */
 #ifdef __linux__
 #define ENABLE_GMT_UCONTEXTS         1
@@ -87,6 +93,23 @@
  * to buffer shortage */
 #define ENABLE_HELPER_BUFF_COPY      1
 
+/*
+ * task scheduling
+ */
+/* enable scheduling through extra thread */
+#define SCHEDULER                    0
+
+/* enable scheduling through all-to-all worker communication */
+#define ALL_TO_ALL                   0
+
+/*
+ * task allocation
+ */
+ /* enable dynamic task allocation */
+#define DTA                         1
+
+/* enable reservation-less task allocation */
+#define NO_RESERVE                  1
 
 #define PRINT_CONFIG_INT(x)  printf("%25s%10s%16d\n", #x, "", x);
 #define PRINT_CONFIG_STR(x)  printf("%25s%10s%16s\n", #x, "", x);
@@ -103,13 +126,22 @@ typedef struct config_t {
     uint32_t max_nesting;
     uint32_t mtasks_per_queue;
     uint32_t num_mtasks_queues;
+#if !DTA
     uint32_t mtasks_res_block_loc;
+#endif
+#if !NO_RESERVE
     uint32_t mtasks_res_block_rem;
+#endif
     uint32_t max_handles_per_node;
     uint32_t handle_check_interv;
     uint32_t mtask_check_interv;
     uint32_t cmdb_check_interv;
     uint32_t node_agg_check_interv;
+#if DTA
+	uint32_t dta_chunk_size;
+	uint32_t dta_prealloc_worker_chunks;
+	uint32_t dta_prealloc_helper_chunks;
+#endif
     
     bool limit_parallelism;
     bool thread_pinning;

@@ -101,7 +101,7 @@ GMT_INLINE bool gmt_try_execute_on_node_with_handle(uint32_t rnid,
     uint32_t wid = uthread_get_wid(tid);
     uint32_t gtid = uthread_get_gtid(tid, node_id);
     if (rnid == node_id) {
-      mtask_t *mt = worker_pop_mtask_pool(wid);
+      mtask_t *mt = worker_mtask_alloc(wid);
       if (mt == NULL) { // Execute here
         //TODO:increase decrease nesting level before and after??
         worker_do_execute((void *)func, args, args_bytes,
@@ -114,13 +114,14 @@ GMT_INLINE bool gmt_try_execute_on_node_with_handle(uint32_t rnid,
           mtm_handle_isvalid(handle, uthreads[tid].mt, gtid);
           mtm_handle_icr_mtasks_created(handle, 1);
         }
-        mtm_push_mtask_queue(mt, (void *)func, args_bytes, args, gtid,
+        mtm_schedule_mtask(mt, (void *)func, args_bytes, args, gtid,
             uthread_get_nest_lev(tid), MTASK_EXECUTE, 
             0, 1, 1, GMT_DATA_NULL,
             ret_size_ptr, ret_buf_ptr,
-            handle);
+            handle, wid);
       }
     } else {
+#if !NO_RESERVE
       if (policy == GMT_PREEMPTABLE) {
             /* if we can't reserve do not execute */
             if (!worker_reserve_mtasks(tid, wid, rnid)) {
@@ -130,6 +131,7 @@ GMT_INLINE bool gmt_try_execute_on_node_with_handle(uint32_t rnid,
                 return false;
             }
         }
+#endif
 
         if (handle == GMT_HANDLE_NULL) {
             uthread_incr_created_mtasks(tid);

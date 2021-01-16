@@ -42,6 +42,10 @@
 
 #include "gmt/worker.h"
 #include "gmt/mtask.h"
+#include "gmt/helper.h"
+#if DTA
+#include "gmt/dta.h"
+#endif
 
 /* gmt_main arguments */
 extern uint8_t *gm_args;
@@ -76,10 +80,13 @@ void worker_team_init()
         workers[i].tick_cmdb_timeout = rdtsc();
         workers[i].cnt_print_sched = 0;
         workers[i].rr_cnt = 0;
+
+#if !DTA
         workers[i].num_mt_res = 0;
         workers[i].num_mt_ret = 0;
         workers[i].mt_res = (mtask_t **)_malloc(config.mtasks_res_block_loc * sizeof(mtask_t *));
         workers[i].mt_ret = (mtask_t **)_malloc(config.mtasks_res_block_loc * sizeof(mtask_t *));
+#endif
         
         uint32_t j;
         for (j = 0; j < NUM_UTHREADS_PER_WORKER; j++) {
@@ -150,11 +157,11 @@ void *worker_loop(void *args)
 
     /* worker 0 of node 0 insert first task */
     if (node_id == 0 && wid == 0) {
-        mtask_t *mt = worker_pop_mtask_pool(wid);
+        mtask_t *mt = worker_mtask_alloc(wid);
         _assert(mt != NULL);
-        mtm_push_mtask_queue(mt, (void *)gmt_main, gm_args_bytes, gm_args, -1, 0,
+        mtm_schedule_mtask(mt, (void *)gmt_main, gm_args_bytes, gm_args, -1, 0,
                              MTASK_GMT_MAIN, gm_argc, gm_argc + 1, 1,
-                             GMT_DATA_NULL, NULL, NULL, GMT_HANDLE_NULL);
+                             GMT_DATA_NULL, NULL, NULL, GMT_HANDLE_NULL, wid);
     }
 
     /* Registering signal handler for seg fault */
@@ -230,11 +237,66 @@ void worker_team_stop()
 void worker_team_destroy()
 {
     uint32_t i;
+
+#if TRACE_QUEUES
+	char qt_fname[128];
+	sprintf(qt_fname, "qt_workers_n%d", node_id);
+	FILE *qtf = fopen(qt_fname, "w");
+	uint64_t pop_hits = 0, pop_misses = 0, rpush_hits = 0, rpush_misses = 0;
+	for (i = 0; i < NUM_WORKERS; i++) {
+		/* local */
+		pop_misses += workers[i].pop_misses;
+		pop_hits += workers[i].pop_hits;
+		fprintf(qtf, "[n=%u w=%u] pop-hits = %llu\tpop-misses = %llu\n",
+				node_id, i, workers[i].pop_hits, workers[i].pop_misses);
+		/* remote */
+		rpush_misses += workers[i].rpush_misses;
+		rpush_hits += workers[i].rpush_hits;
+		fprintf(qtf, "[n=%u w=%u] rpush-hits = %llu\trpush-misses = %llu\n",
+				node_id, i, workers[i].rpush_hits, workers[i].rpush_misses);
+	}
+	/* local */
+	fprintf(qtf, "[n=%u] pop-hits = %llu\tpop-misses = %llu", node_id, pop_hits,
+			pop_misses);
+	if (pop_misses + pop_hits)
+		fprintf(qtf, "\t(hit-rate = %g%%)\n",
+				(float) pop_hits / (pop_hits + pop_misses) * 100);
+	/* remote */
+	fprintf(qtf, "[n=%u] rpush-hits = %llu\trpush-misses = %llu", node_id,
+			rpush_hits, rpush_misses);
+	if (rpush_misses + rpush_hits)
+		fprintf(qtf, "\t(hit-rate = %g%%)\n",
+				(float) rpush_hits / (rpush_hits + rpush_misses) * 100);
+	else
+		fprintf(qtf, "\n");
+	fclose(qtf);
+#endif
+
+#if TRACE_ALLOC
+	char at_fname[128];
+	sprintf(at_fname, "at_workers_n%d", node_id);
+	FILE *atf = fopen(at_fname, "w");
+	uint64_t alloc_hit = 0, alloc_mss = 0;
+	for (i = 0; i < NUM_WORKERS; i++) {
+		alloc_hit += workers[i].alloc_hit;
+		alloc_mss += workers[i].alloc_mss;
+		fprintf(atf, "[n=%u w=%u] alloc_hit = %llu\talloc_mss = %llu\n",
+				node_id, i, workers[i].alloc_hit, workers[i].alloc_mss);
+	}
+	fprintf(atf, "[n=%u] alloc_hit = %llu\talloc_mss = %llu", node_id,
+			alloc_hit, alloc_mss);
+	fprintf(atf, "\t(hit-rate = %g%%)\n",
+			(float) alloc_hit / (alloc_hit + alloc_mss) * 100);
+	fclose(atf);
+#endif
+
     for (i = 0; i < NUM_WORKERS; i++) {
         uthread_queue_destroy(&workers[i].uthread_queue);
         uthread_queue_destroy(&workers[i].uthread_pool);
+#if !DTA
         free(workers[i].mt_res);
         free(workers[i].mt_ret);
+#endif
     }
 
     uthread_destroy_all();
@@ -292,7 +354,7 @@ void worker_task_wrapper(uint32_t start_it_L32, uint32_t start_it_H32)
                                        mt.ret_buf_size_ptr, buf_size, buf, mt.handle);
           }
           /* push completed mtask in the pool */
-          worker_push_mtask_pool(ut->wid, ut->mt);
+          worker_mtask_free(ut->wid, ut->mt);
         }
         break;
     case MTASK_FOR:
@@ -326,7 +388,7 @@ void worker_task_wrapper(uint32_t start_it_L32, uint32_t start_it_H32)
 
                 }
                 /* push completed mtask in the pool */
-                worker_push_mtask_pool(ut->wid, ut->mt);
+                worker_mtask_free(ut->wid, ut->mt);
             }
         }
         break;
@@ -395,7 +457,7 @@ void worker_exit()
     worker_team_stop();
 
     /* push mtask that generated this task back in the pool */
-    worker_push_mtask_pool(wid, uthreads[tid].mt);
+    worker_mtask_free(wid, uthreads[tid].mt);
 
     /* return to worker context */
     gmt_swapcontext(&uthreads[tid].ucontext, &workers[wid].worker_ctxt);
