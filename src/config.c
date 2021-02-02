@@ -53,7 +53,7 @@ int gmt_get_comm_buffer_size()
 
 void config_init()
 {
-    config.comm_buffer_size = 256 * 1024;
+    config.comm_buffer_size = 1024 * 1024;
     config.num_cmd_blocks = 128;
     config.cmd_block_size = 4096;
     config.num_buffs_per_channel = 64;
@@ -79,7 +79,7 @@ void config_init()
     config.mtasks_res_block_rem = 1024;
 #endif
     config.limit_parallelism = false;
-    config.thread_pinning = false;
+    config.thread_pinning = true;
     config.release_uthread_stack = false;
     config.print_stack_break = false;
     config.print_gmt_mem_usage = false;

@@ -446,7 +446,7 @@ extern "C" {
 
     /**************************************************************************/
     /*                                                                        */
-    /*                      PUT/PUT_VALUE/GET/COPY                            */
+    /*                 PUT/PUT_VALUE/GET/COPY/SCATTER/GATHER                  */
     /*                                                                        */
     /**************************************************************************/
 
@@ -470,6 +470,28 @@ extern "C" {
 
     //@{
     /** 
+     * Copy memory from local memory to a GMT array (byte version).
+     * Non blocking `_nb' waits completion with ::gmt_wait_data()
+     *
+     * @param[in] gmt_array destination GMT array 
+     * @param[in] index offset in number of elements in the GMT array
+     * @param[in] data pointer to the local bytes
+     * @param[in] num_elema number of elements to copy
+     * @param[in] byte_offset number of bytes from first byte of element
+     * @param[in] num_bytes number of bytes per element to copy
+     *
+     * @ingroup GMT_module
+     */
+    void gmt_put_bytes(gmt_data_t array, uint64_t index, void * data, uint64_t num_elems,
+                       uint64_t byte_offset, uint64_t num_bytes);
+
+    void gmt_put_bytes_nb(gmt_data_t array, uint64_t index, void * data, uint64_t num_elems,
+                          uint64_t byte_offset, uint64_t num_bytes);
+
+    //@}
+
+    //@{
+    /** 
      * Writes an element into a GMT array passing it by value. Can only be used 
      * for array containing elements different than 8,4,2 or 1 bytes.
      * Non blocking '_nb' waits completion with ::gmt_wait_data()
@@ -488,7 +510,7 @@ extern "C" {
 
     //@{
     /** 
-     * Copy memory from a GMT array to the local memory. (bytes version)
+     * Copy memory from a GMT array to the local memory. (element version)
      * Non blocking '_nb' waits completion with ::gmt_wait_data()
      *
      * @param[in]  gmt_array source GMT array
@@ -504,6 +526,29 @@ extern "C" {
                     void *elem, uint64_t num_elem);
     //@}
 
+    //@{
+    /** 
+     * Copy memory from a GMT array to the local memory. (bytes version)
+     * Non blocking '_nb' waits completion with ::gmt_wait_data()
+     *
+     * @param[in]  gmt_array source GMT array
+     * @param[in]  index offset in number of elements in the GMT array
+     * @param[out] data pointer to the local element
+     * @param[in]  num_elems number of elements to copy
+     * @param[in] byte_offset number of bytes from first byte of element
+     * @param[in] num_bytes number of bytes per element to copy
+     *
+     * @ingroup GMT_module
+     */
+    void gmt_get_bytes(gmt_data_t array, uint64_t index, void * data, uint64_t num_elems,
+                       uint64_t byte_offset, uint64_t num_bytes);
+
+    void gmt_get_bytes_nb(gmt_data_t array, uint64_t index, void * data, uint64_t num_elems,
+                          uint64_t byte_offset, uint64_t num_bytes);
+
+    //@}
+
+    //@{
     /** 
      * Copy memory from a GMT array to another (element version).
      *
@@ -520,6 +565,45 @@ extern "C" {
     void gmt_memcpy(gmt_data_t src, uint64_t src_elem_offset,
                     gmt_data_t dst, uint64_t dst_elem_offset,
                     uint64_t num_elem);
+
+    //@}
+
+    //@{
+    /** 
+     * Gather memory from a GMT array to the local memory. (element version)
+     * Non blocking '_nb' waits completion with ::gmt_wait_data()
+     *
+     * @param[in]  gmt_array source GMT array
+     * @param[in]  index vector for elements in the GMT array
+     * @param[out] data pointer to the local element
+     * @param[in]  num_elems number of elements to copy
+     *
+     * @ingroup GMT_module
+     */
+    void gmt_gather(gmt_data_t array, uint64_t * index, void * data, uint64_t num_elems);
+    void gmt_gather_nb(gmt_data_t array, uint64_t * index, void * data, uint64_t num_elems);
+
+    //@}
+
+    //@{
+    /** 
+     * Scatter memory from a GMT array to the local memory. (element version)
+     * Non blocking '_nb' waits completion with ::gmt_wait_data()
+     *
+     * @param[in]  gmt_array source GMT array
+     * @param[in]  index vector for elements in the GMT array
+     * @param[out] data pointer to the local element
+     * @param[in]  num_elems number of elements to copy
+     * 
+     * @param[in] stream vector of pairs {index, data}, necessary to perseve index/data vectors until
+     *       gmt_wait completes
+     *
+     * @ingroup GMT_module
+     */
+    void gmt_scatter(gmt_data_t array, uint64_t * index, void * data, uint64_t num_elems);
+    void gmt_scatter_nb(gmt_data_t array, uint64_t * stream, uint64_t num_elems);
+
+    //@}
 
     /**
      * Waits for completion of any non blocking put/get/atomic data operation on
@@ -540,7 +624,7 @@ extern "C" {
 
     //@{
     /** 
-     * Perform an atomic add into an element of a GMT array 
+     * Perform an atomic operation into an element of a GMT array 
      * (similar to sync_fetch_and_add). Can only be used on arrays containing
      * elements of 8,4,2 or 1 bytes.
      * Non blocking '_nb' waits completion with ::gmt_wait_data()
@@ -556,27 +640,39 @@ extern "C" {
     int64_t gmt_atomic_add(gmt_data_t gmt_array, uint64_t elem_offset,
                            int64_t value);
 
-     void gmt_atomic_add_nb(gmt_data_t gmt_array, uint64_t elem_offset,
+    void gmt_atomic_add_nb(gmt_data_t gmt_array, uint64_t elem_offset,
                            int64_t value, int64_t * ret_value_ptr);
-    //@}
-    
-    //@{
-    //
-    //
-    /** 
-     * Perform an atomic compare and swap into a GMT array
-     * (similar to sync_compare_and_swap). Can only be used 
-     * for array containing elements of 8,4,2 or 1 bytes.
-     *
-     * @param[in]  gmt_array GMT array
-     * @param[in]  elem_offset offset in number of elements in the GMT array
-     * @param[in]  old_value old value 
-     * @param[in]  new_value new value to compare against old value
-     *
-     * @return value of the variable before the operation
-     *
-     * @ingroup GMT_module
-     */
+
+    double gmt_atomic_double_add(gmt_data_t gmt_array, uint64_t elem_offset,
+                           double value);
+
+    void gmt_atomic_double_add_nb(gmt_data_t gmt_array, uint64_t elem_offset,
+                           double value, double * ret_value_ptr);
+
+    double gmt_atomic_double_max(gmt_data_t gmt_array, uint64_t elem_offset,
+                           double value);
+
+    void gmt_atomic_double_max_nb(gmt_data_t gmt_array, uint64_t elem_offset,
+                           double value, double * ret_value_ptr);
+
+    double gmt_atomic_double_min(gmt_data_t gmt_array, uint64_t elem_offset,
+                           double value);
+
+    void gmt_atomic_double_min_nb(gmt_data_t gmt_array, uint64_t elem_offset,
+                           double value, double * ret_value_ptr);
+
+    int64_t gmt_atomic_max(gmt_data_t gmt_array, uint64_t elem_offset,
+                           int64_t value);
+
+    void gmt_atomic_max_nb(gmt_data_t gmt_array, uint64_t elem_offset,
+                           int64_t value, int64_t * ret_value_ptr);
+
+    int64_t gmt_atomic_min(gmt_data_t gmt_array, uint64_t elem_offset,
+                           int64_t value);
+
+    void gmt_atomic_min_nb(gmt_data_t gmt_array, uint64_t elem_offset,
+                           int64_t value, int64_t * ret_value_ptr);
+
     int64_t gmt_atomic_cas(gmt_data_t gmt_array, uint64_t elem_offset,
                            int64_t old_value, int64_t new_value);
 

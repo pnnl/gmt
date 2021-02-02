@@ -1,48 +1,14 @@
-/*
- * Global Memory and Threading (GMT)
- *
- * Copyright © 2018, Battelle Memorial Institute
- * All rights reserved.
- *
- * Battelle Memorial Institute (hereinafter Battelle) hereby grants permission to
- * any person or entity lawfully obtaining a copy of this software and associated
- * documentation files (hereinafter “the Software”) to redistribute and use the
- * Software in source and binary forms, with or without modification.  Such
- * person or entity may use, copy, modify, merge, publish, distribute,
- * sublicense, and/or sell copies of the Software, and may permit others to do
- * so, subject to the following conditions:
- *
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- * 3. Neither the name `Battelle Memorial Institute` or `Battelle` may be used in
- *    any form whatsoever without the express written consent of `Battelle`.
- *  
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL `BATTELLE` OR CONTRIBUTORS BE LIABLE FOR ANY
- * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
- * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
- * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
- * ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
- * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
-
 #ifndef __AGGREGATION_H__
 #define __AGGREGATION_H__
 
-#include "gmt/config.h"
-#include "gmt/debug.h"
-#include "gmt/queue.h"
-#include "gmt/comm_server.h"
-#include "gmt/commands.h"
-#include "gmt/profiling.h"
-#include "gmt/utils.h"
-#include "gmt/queue.h"
+#include "config.h"
+#include "debug.h"
+#include "queue.h"
+#include "comm_server.h"
+#include "commands.h"
+#include "profiling.h"
+#include "utils.h"
+#include "queue.h"
 
 #if !ENABLE_SINGLE_NODE_ONLY
 
@@ -182,11 +148,6 @@ INLINE int32_t agm_aggregate_and_send(uint32_t rnid, uint32_t thid,
 
     while (cmdb_queue_pop(&agms[rnid].queue_cmdb, &cmdb)) {
 
-//         _DEBUG
-//             ("aggregating cmd_block %p cmds_bytes %u data_cnt %u data_bytes %u\n",
-//              cmdb, cmdb->block_info.cmds_bytes, cmdb->data_cnt,
-//              cmdb->block_info.data_bytes);
-
         /* _assert equivalent bytes of cmd_block is <= buffer size */
         _assert(agm_get_cmdb_eq_bytes(cmdb) <= COMM_BUFFER_SIZE);
 
@@ -318,17 +279,22 @@ INLINE void *agm_get_cmd_a(uint32_t rnid, uint32_t thid,
                            uint32_t cmd_size, uint64_t req_data_size,
                            uint32_t * const granted_data_size)
 {
+// JTF - on entry, if granted_data_size is not NULL, * granted_size is minimum transfer size
     _assert(rnid < num_nodes);
     _assert(cmd_size <= CMD_BLOCK_SIZE);
 
-    cmd_block_t *cmdb = agms[rnid].p_cmdbs[thid];
-    if (cmdb == NULL)
-        cmdb = agm_set_cmdb(rnid, thid);
+    uint32_t min_transfer = (granted_data_size == NULL) ? 0 : * granted_data_size;
+    _assert(cmd_size + min_transfer <= COMM_BUFFER_SIZE);
 
-    /* if we can't fit more commands in this command block
-     * push it and get a new one */
+    cmd_block_t *cmdb = agms[rnid].p_cmdbs[thid];
+    if (cmdb == NULL) cmdb = agm_set_cmdb(rnid, thid);
+
+    /* if   we can't fit more commands in this command block OR
+            the number of bytes remaining the communication buffer is less than minimum
+       then push communication buffer and get a new one
+    */
     if (cmdb->block_info.cmds_bytes + cmd_size > CMD_BLOCK_SIZE
-        || agm_get_cmdb_eq_bytes(cmdb) + cmd_size > COMM_BUFFER_SIZE) {
+        || agm_get_cmdb_eq_bytes(cmdb) + cmd_size + min_transfer > COMM_BUFFER_SIZE) {
         agm_push_cmdb(rnid, thid, false);
         cmdb = agm_set_cmdb(rnid, thid);
     }

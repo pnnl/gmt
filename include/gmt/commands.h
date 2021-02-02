@@ -79,7 +79,20 @@
 #define GMT_CMD_MTASKS_RES_REQ                  19
 #define GMT_CMD_MTASKS_RES_REPLY                20
 
-#define GMT_MAX_CMD_NUM                         20
+#define GMT_CMD_ATOMIC_DOUBLE_ADD               21
+#define GMT_CMD_ATOMIC_DOUBLE_MAX               22
+#define GMT_CMD_ATOMIC_DOUBLE_MIN               23
+#define GMT_CMD_ATOMIC_MAX                      24
+#define GMT_CMD_ATOMIC_MIN                      25
+
+#define GMT_CMD_PUT_COLUMN                      26
+#define GMT_CMD_GET_COLUMN                      27
+#define GMT_CMD_REPLY_GET_COLUMN                28
+#define GMT_CMD_SCATTER                         29
+#define GMT_CMD_GATHER                          30
+#define GMT_CMD_REPLY_GATHER                    31
+
+#define GMT_MAX_CMD_T                           26
 
 typedef uint8_t cmd_type_t;
 
@@ -134,6 +147,44 @@ typedef struct PACKED_STR {
   cmd_type_t type:CMD_TYPE_BITS;
   uint32_t tid:TID_BITS;
   gmt_data_t gmt_array;
+  uint64_t num_elems;
+  uint64_t curr_byte;
+  uint64_t put_bytes;
+  uint64_t byte_offset;
+} cmd_put_bytes_t;
+
+typedef struct PACKED_STR {
+  cmd_type_t type:CMD_TYPE_BITS;
+  uint32_t tid:TID_BITS;
+  gmt_data_t gmt_array;
+  uint64_t put_bytes;
+  uint64_t num_elems;
+} cmd_scatter_t;
+
+typedef struct PACKED_STR {
+  cmd_type_t type:CMD_TYPE_BITS;
+  uint32_t tid:TID_BITS;
+  gmt_data_t gmt_array;
+  uint64_t last_index;
+  uint64_t num_elems;
+  uint64_t index_ptr:VIRT_ADDR_PTR_BITS;
+  uint64_t ret_data_ptr:VIRT_ADDR_PTR_BITS;
+} cmd_gather_t;
+
+typedef struct PACKED_STR {
+  cmd_type_t type:CMD_TYPE_BITS;
+  uint32_t tid:TID_BITS;
+  gmt_data_t gmt_array;
+  uint64_t num_elems;
+  uint64_t get_bytes;;
+  uint64_t index_ptr:VIRT_ADDR_PTR_BITS;
+  uint64_t ret_data_ptr:VIRT_ADDR_PTR_BITS;
+} cmd_rep_gather_t;
+
+typedef struct PACKED_STR {
+  cmd_type_t type:CMD_TYPE_BITS;
+  uint32_t tid:TID_BITS;
+  gmt_data_t gmt_array;
   uint64_t offset;
   uint64_t value;
 } cmd_put_value_t;
@@ -162,9 +213,38 @@ typedef struct PACKED_STR {
   uint32_t tid:TID_BITS;
   gmt_data_t gmt_array;
   uint64_t offset;
+  uint64_t field_offset;
+  uint64_t ret_value_ptr:VIRT_ADDR_PTR_BITS;
+  double value;
+} cmd_atomic_double_t;
+
+typedef struct PACKED_STR {
+  cmd_type_t type:CMD_TYPE_BITS;
+  uint32_t tid:TID_BITS;
+  gmt_data_t gmt_array;
+  uint64_t offset;
+  uint64_t ret_value_ptr:VIRT_ADDR_PTR_BITS;
+  int64_t value;
+} cmd_atomic_int_t;
+
+typedef struct PACKED_STR {
+  cmd_type_t type:CMD_TYPE_BITS;
+  uint32_t tid:TID_BITS;
+  gmt_data_t gmt_array;
+  uint64_t offset;
   uint64_t ret_data_ptr:VIRT_ADDR_PTR_BITS;
   uint64_t get_bytes;
 } cmd_get_t;
+
+typedef struct PACKED_STR {
+  cmd_type_t type:CMD_TYPE_BITS;
+  uint32_t tid:TID_BITS;
+  gmt_data_t gmt_array;
+  uint64_t offset;
+  uint64_t ret_data_ptr:VIRT_ADDR_PTR_BITS;
+  uint64_t get_bytes;
+  uint64_t byte_offset;
+} cmd_get_bytes_t;
 
 typedef struct PACKED_STR {
   cmd_type_t type:CMD_TYPE_BITS;
@@ -176,9 +256,25 @@ typedef struct PACKED_STR {
 typedef struct PACKED_STR {
   cmd_type_t type:CMD_TYPE_BITS;
   uint32_t tid:TID_BITS;
+  uint64_t ret_value_ptr:VIRT_ADDR_PTR_BITS;
+  double value;
+} cmd_double_rep_value_t;
+
+typedef struct PACKED_STR {
+  cmd_type_t type:CMD_TYPE_BITS;
+  uint32_t tid:TID_BITS;
   uint64_t ret_data_ptr:VIRT_ADDR_PTR_BITS;
   uint64_t get_bytes;
 } cmd_rep_get_t;
+
+typedef struct PACKED_STR {
+  cmd_type_t type:CMD_TYPE_BITS;
+  uint32_t tid:TID_BITS;
+  uint64_t ret_data_ptr:VIRT_ADDR_PTR_BITS;
+  uint64_t get_bytes;
+  gmt_data_t gmt_array;
+  uint64_t byte_offset;
+} cmd_rep_get_bytes_t;
 
 typedef struct PACKED_STR {
   cmd_type_t type:CMD_TYPE_BITS;
@@ -266,7 +362,7 @@ typedef struct PACKED_STR {
 INLINE uint64_t commands_max_cmd_size()
 {
 
-  uint64_t sizes[GMT_MAX_CMD_NUM] = {
+  uint64_t sizes[GMT_MAX_CMD_T] = {
     sizeof(cmd_gen_t),
     sizeof(cmd32_t),
     sizeof(cmd64_t),
@@ -276,21 +372,31 @@ INLINE uint64_t commands_max_cmd_size()
     sizeof(cmd_put_value_t),
     sizeof(cmd_atomic_cas_t),
     sizeof(cmd_atomic_add_t),
+    sizeof(cmd_atomic_int_t),
+    sizeof(cmd_atomic_double_t),
     sizeof(cmd_get_t),
-    sizeof(cmd_rep_value_t),
     sizeof(cmd_rep_get_t),
+    sizeof(cmd_rep_value_t),
+    sizeof(cmd_double_rep_value_t),
     sizeof(cmd_exec_t),
     sizeof(cmd_exec_compl_t),
     sizeof(cmd_for_t),
     sizeof(cmd_for_compl_t),
-    sizeof(cmd_check_handle_t)};
+    sizeof(cmd_put_bytes_t),
+    sizeof(cmd_get_bytes_t),
+    sizeof(cmd_rep_get_bytes_t),
+    sizeof(cmd_scatter_t),
+    sizeof(cmd_gather_t),
+    sizeof(cmd_rep_gather_t),
+    sizeof(cmd_check_handle_t)
+  };
 
   uint64_t i;
   uint64_t max = 0;
-  for( i = 0; i < GMT_MAX_CMD_NUM; i++ )
-    if (sizes[i] > max )
-      max = sizes[i];
+  for( i = 0; i < GMT_MAX_CMD_T; i++ )
+    if (sizes[i] > max ) max = sizes[i];
 
   return max;
 }
+
 #endif

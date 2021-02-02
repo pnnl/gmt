@@ -530,6 +530,11 @@ INLINE uint8_t *mem_get_loc_ptr(gentry_t * ga,
     return ptr;
 }
 
+INLINE uint64_t gmt_nelems_tot(gmt_data_t data) {
+  if (data == GMT_DATA_NULL) return 0;
+  else return  mem_get_gentry(data)->nbytes_tot / mem_get_gentry(data)->nbytes_elem;
+}
+
 INLINE void mem_free(gmt_data_t gmt_array)
 {
     if (gmt_array == GMT_DATA_NULL)

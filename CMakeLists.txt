@@ -64,8 +64,7 @@ link_libraries(m)
 
 include_directories(${GMT_MAIN_INCLUDE_DIR} ${GMT_INCLUDE_DIR})
 
-
-# Appending -O2 to gmt because otherwise it will fail to link.
+# Appending -O3 to gmt because otherwise it will fail to link.
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wabi -Wextra")
 
@@ -74,6 +73,7 @@ install(FILES ${GMT_INCLUDE_DIR}/gmt/config.h DESTINATION include/gmt)
 
 add_subdirectory(src)
 add_subdirectory(test)
+add_subdirectory(algorithms/zombie)
 
 install(DIRECTORY ${GMT_MAIN_INCLUDE_DIR}/gmt
   DESTINATION include

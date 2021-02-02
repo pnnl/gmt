@@ -333,6 +333,18 @@ INLINE void helper_send_rep_value(uint32_t rnid,
   agm_set_cmd_data(rnid, hid + NUM_WORKERS, NULL, 0);
 }
 
+INLINE void helper_send_double_rep_value(uint32_t rnid,
+    uint32_t hid, uint32_t tid, uint64_t ret_value_ptr, double value)
+{
+  cmd_double_rep_value_t *c;
+  c = (cmd_double_rep_value_t *) agm_get_cmd(rnid, hid + NUM_WORKERS, sizeof(cmd_double_rep_value_t), 0, NULL);
+  c->type = GMT_CMD_REPLY_VALUE;
+  c->tid = tid;
+  c->ret_value_ptr = ret_value_ptr;
+  c->value = value;
+  agm_set_cmd_data(rnid, hid + NUM_WORKERS, NULL, 0);
+}
+
 INLINE void helper_check_in_buffers(bool postpone, uint32_t hid)
 {
   net_buffer_t *recv_buff = comm_server_pop_recv_buff(hid);
@@ -434,6 +446,101 @@ INLINE void helper_check_in_buffers(bool postpone, uint32_t hid)
             COUNT_EVENT(HELPER_CMD_ATOMIC_ADD);
           }
           break;
+        case GMT_CMD_ATOMIC_DOUBLE_ADD:
+          {
+            cmd_atomic_double_t *c = (cmd_atomic_double_t *) gcmd;
+            gentry_t *g = mem_get_gentry(c->gmt_array);
+            int64_t * p = (int64_t *) mem_get_loc_ptr(g, c->offset, g->nbytes_elem);
+            double old_value;
+
+            while (true) {
+              old_value = * (double *) p;
+              double new_value = old_value + c->value;
+              int64_t * old_value_ptr = (int64_t *) & old_value;
+              int64_t * new_value_ptr = (int64_t *) & new_value;
+              if (__sync_bool_compare_and_swap(p, * old_value_ptr, * new_value_ptr)) break;
+            }
+            helper_send_double_rep_value(rnid, hid, c->tid, c->ret_value_ptr, old_value);
+            cmds_ptr += sizeof(*c);
+            COUNT_EVENT(HELPER_CMD_ATOMIC_DOUBLE_ADD);
+          }
+          break;
+        case GMT_CMD_ATOMIC_DOUBLE_MAX:
+          {
+            cmd_atomic_double_t *c = (cmd_atomic_double_t *) gcmd;
+            gentry_t *g = mem_get_gentry(c->gmt_array);
+            int64_t * p = ((int64_t *) mem_get_loc_ptr(g, c->offset, g->nbytes_elem)) + c->field_offset;
+            double old_value;
+
+            while (true) {
+              old_value = * (double *) p;
+              double new_value = MAX(old_value, c->value);
+              int64_t * old_value_ptr = (int64_t *) & old_value;
+              int64_t * new_value_ptr = (int64_t *) & new_value;
+              if (__sync_bool_compare_and_swap(p, * old_value_ptr, * new_value_ptr)) break;
+            }
+            helper_send_double_rep_value(rnid, hid, c->tid, c->ret_value_ptr, old_value);
+            cmds_ptr += sizeof(*c);
+            COUNT_EVENT(HELPER_CMD_ATOMIC_DOUBLE_MAX);
+          }
+          break;
+        case GMT_CMD_ATOMIC_DOUBLE_MIN:
+          {
+            cmd_atomic_double_t *c = (cmd_atomic_double_t *) gcmd;
+            gentry_t *g = mem_get_gentry(c->gmt_array);
+            int64_t * p = (int64_t *) mem_get_loc_ptr(g, c->offset, g->nbytes_elem);
+            double old_value;
+
+            while (true) {
+              old_value = * (double *) p;
+              double new_value = MIN(old_value, c->value);
+              int64_t * old_value_ptr = (int64_t *) & old_value;
+              int64_t * new_value_ptr = (int64_t *) & new_value;
+              if (__sync_bool_compare_and_swap(p, * old_value_ptr, * new_value_ptr)) break;
+            }
+            helper_send_double_rep_value(rnid, hid, c->tid, c->ret_value_ptr, old_value);
+            cmds_ptr += sizeof(*c);
+            COUNT_EVENT(HELPER_CMD_ATOMIC_DOUBLE_MIN);
+          }
+          break;
+        case GMT_CMD_ATOMIC_MAX:
+          {
+            cmd_atomic_int_t *c = (cmd_atomic_int_t *) gcmd;
+            gentry_t *g = mem_get_gentry(c->gmt_array);
+            int64_t * p = (int64_t *) mem_get_loc_ptr(g, c->offset, g->nbytes_elem);
+            int64_t old_value;
+
+            while (true) {
+              old_value = * (int64_t *) p;
+              int64_t new_value = MAX(old_value, c->value);
+              int64_t * old_value_ptr = (int64_t *) & old_value;
+              int64_t * new_value_ptr = (int64_t *) & new_value;
+              if (__sync_bool_compare_and_swap(p, * old_value_ptr, * new_value_ptr)) break;
+            }
+            helper_send_double_rep_value(rnid, hid, c->tid, c->ret_value_ptr, old_value);
+            cmds_ptr += sizeof(*c);
+            COUNT_EVENT(HELPER_CMD_ATOMIC_MAX);
+          }
+          break;
+        case GMT_CMD_ATOMIC_MIN:
+          {
+            cmd_atomic_int_t *c = (cmd_atomic_int_t *) gcmd;
+            gentry_t *g = mem_get_gentry(c->gmt_array);
+            int64_t * p = (int64_t *) mem_get_loc_ptr(g, c->offset, g->nbytes_elem);
+            int64_t old_value;
+
+            while (true) {
+              old_value = * (int64_t *) p;
+              int64_t new_value = MIN(old_value, c->value);
+              int64_t * old_value_ptr = (int64_t *) & old_value;
+              int64_t * new_value_ptr = (int64_t *) & new_value;
+              if (__sync_bool_compare_and_swap(p, * old_value_ptr, * new_value_ptr)) break;
+            }
+            helper_send_double_rep_value(rnid, hid, c->tid, c->ret_value_ptr, old_value);
+            cmds_ptr += sizeof(*c);
+            COUNT_EVENT(HELPER_CMD_ATOMIC_MIN);
+          }
+          break;
         case GMT_CMD_ATOMIC_CAS:
           {
             cmd_atomic_cas_t *c = (cmd_atomic_cas_t *) gcmd;
@@ -471,6 +578,25 @@ INLINE void helper_check_in_buffers(bool postpone, uint32_t hid)
             COUNT_EVENT(HELPER_CMD_PUT_VALUE);
           }
           break;
+        case GMT_CMD_PUT_COLUMN:
+          {
+            cmd_put_bytes_t * c = (cmd_put_bytes_t *) gcmd;
+            gentry_t * g = mem_get_gentry(c->gmt_array);
+
+            uint8_t * curr_byte_local = mem_get_loc_ptr(g, c->curr_byte, 0);
+            uint8_t * last_byte_local = curr_byte_local + c->num_elems * g->nbytes_elem;
+
+            while (curr_byte_local < last_byte_local) {
+              memcpy(curr_byte_local + c->byte_offset, data_ptr, sizeof(uint64_t));
+              curr_byte_local += g->nbytes_elem;
+              data_ptr += sizeof(uint64_t);
+            }
+            
+            helper_send_rep_ack(rnid, hid, c->tid);
+            cmds_ptr += sizeof(* c);
+            COUNT_EVENT(HELPER_CMD_PUT);
+          }
+          break;
         case GMT_CMD_GET:
           {
             cmd_get_t *c = (cmd_get_t *) gcmd;
@@ -498,6 +624,104 @@ INLINE void helper_check_in_buffers(bool postpone, uint32_t hid)
               boffset += granted_nbytes;
             }
             cmds_ptr += sizeof(*c);
+            COUNT_EVENT(HELPER_CMD_GET);
+          }
+          break;
+        case GMT_CMD_GET_COLUMN:
+          {
+            cmd_get_bytes_t * c = (cmd_get_bytes_t *) gcmd;
+            gentry_t * g = mem_get_gentry(c->gmt_array);
+
+            uint8_t * my_ret_data_ptr = (uint8_t *) ((uint64_t) c->ret_data_ptr);
+            uint8_t * curr_local_byte = mem_get_loc_ptr(g, c->offset, c->get_bytes);
+            uint8_t * last_local_byte = curr_local_byte + c->get_bytes;
+
+            while (curr_local_byte < last_local_byte) {
+              uint32_t granted_bytes = 0;
+              uint64_t remaining_bytes = last_local_byte - curr_local_byte;
+              cmd_rep_get_bytes_t * cr = (cmd_rep_get_bytes_t *) agm_get_cmd(rnid, hid + NUM_WORKERS,
+                  sizeof(cmd_rep_get_bytes_t), remaining_bytes, & granted_bytes);
+
+              cr->type = GMT_CMD_REPLY_GET_COLUMN;
+              cr->tid = c->tid;
+              cr->gmt_array = c->gmt_array;
+              cr->ret_data_ptr = (uint64_t) my_ret_data_ptr;
+              cr->get_bytes = granted_bytes;
+              cr->byte_offset = c->byte_offset;
+              agm_set_cmd_data(rnid, hid + NUM_WORKERS, curr_local_byte, granted_bytes);
+              
+              uint64_t num_elems = granted_bytes / g->nbytes_elem;        // number of elements processed by REPLY
+              my_ret_data_ptr += num_elems * sizeof(uint64_t);
+              curr_local_byte += num_elems * g->nbytes_elem;
+            }
+
+            cmds_ptr += sizeof(* c);
+            COUNT_EVENT(HELPER_CMD_GET);
+          }
+          break;
+        case GMT_CMD_SCATTER:
+          {
+            cmd_scatter_t * c = (cmd_scatter_t *) gcmd;
+            gentry_t * g = mem_get_gentry(c->gmt_array);
+
+            for (uint64_t i = 0; i < c->num_elems; i ++) {                           // for each elem sent
+              uint64_t index = * (uint64_t *) data_ptr;                                // index is first word
+              uint64_t array_offset = index * g->nbytes_elem;
+              uint8_t * local_byte = g->data + (array_offset - g->goffset_bytes);
+              memcpy(local_byte, data_ptr + sizeof(uint64_t), g->nbytes_elem);      // elem bytes start after index
+              data_ptr += sizeof(uint64_t) + g->nbytes_elem;                        // increment by index/elem pair
+            }
+            
+            helper_send_rep_ack(rnid, hid, c->tid);
+            cmds_ptr += sizeof(* c);
+            COUNT_EVENT(HELPER_CMD_PUT);
+          }
+          break;
+        case GMT_CMD_GATHER:
+          {
+            cmd_gather_t * c = (cmd_gather_t *) gcmd;
+            gentry_t * g = mem_get_gentry(c->gmt_array);
+
+            uint64_t i = 0;
+            uint64_t last_index = c->last_index;
+            uint8_t * my_index_ptr = (uint8_t *) ((uint64_t) c->index_ptr);
+            uint8_t * my_ret_data_ptr = (uint8_t *) ((uint64_t) c->ret_data_ptr);
+
+            while (i < c->num_elems) {                           // for each index sent
+              uint32_t granted_bytes = g->nbytes_elem;           // insure comm buffer can send at least one elem
+              uint64_t first_index = * (uint64_t *) data_ptr;
+              uint64_t remaining_bytes = (last_index - first_index + 1) * g->nbytes_elem;
+              uint8_t * ga_byte = g->data + (first_index * g->nbytes_elem) - g->goffset_bytes;
+
+              cmd_rep_gather_t * cr = (cmd_rep_gather_t *) agm_get_cmd(rnid, hid + NUM_WORKERS,
+                  sizeof(cmd_rep_gather_t), remaining_bytes, & granted_bytes);
+
+              // find next index such that [my_first_index ... my_next_index) elements fit in communication buffer
+              uint64_t first_i = i;
+              uint32_t requested_bytes = g->nbytes_elem;
+
+              while (true) {
+                i ++;
+                data_ptr += sizeof(uint64_t);
+                if (i == c->num_elems) break;                    // all done
+
+                uint64_t next_index = * (uint64_t *) data_ptr;
+                uint64_t needed_bytes = (next_index - first_index + 1) * g->nbytes_elem;
+                if (needed_bytes <= granted_bytes) requested_bytes = needed_bytes; else break;
+              }
+
+              cr->type = GMT_CMD_REPLY_GATHER;
+              cr->tid = c->tid;
+              cr->gmt_array = c->gmt_array;
+              cr->num_elems = i - first_i;
+              cr->get_bytes = requested_bytes;
+              cr->index_ptr = (uint64_t) (my_index_ptr + first_i * sizeof(uint64_t));
+              cr->ret_data_ptr = (uint64_t) (my_ret_data_ptr + first_i * g->nbytes_elem);
+
+              agm_set_cmd_data(rnid, hid + NUM_WORKERS, ga_byte, requested_bytes);
+            }
+
+            cmds_ptr += sizeof(* c);
             COUNT_EVENT(HELPER_CMD_GET);
           }
           break;
@@ -774,6 +998,51 @@ INLINE void helper_check_in_buffers(bool postpone, uint32_t hid)
             memcpy(ptr, data_ptr, c->get_bytes);
             uthread_incr_recv_nbytes(c->tid, c->get_bytes);
             cmds_ptr += sizeof(*c);
+            data_ptr += c->get_bytes;
+            COUNT_EVENT(HELPER_CMD_REPLY_GET);
+          }
+          break;
+        case GMT_CMD_REPLY_GET_COLUMN:
+          {
+            cmd_rep_get_bytes_t * c = (cmd_rep_get_bytes_t *) gcmd;
+            gentry_t * g = mem_get_gentry(c->gmt_array);
+            uint64_t num_elems = c->get_bytes / g->nbytes_elem;
+
+            uint8_t * my_data_ptr = data_ptr;
+            uint8_t * my_ret_data = (uint8_t *) ((uint64_t) c->ret_data_ptr);
+
+            for (uint64_t i = 0; i < num_elems; i ++) {
+              memcpy(my_ret_data, my_data_ptr + c->byte_offset, sizeof(uint64_t));
+              my_ret_data += sizeof(uint64_t);
+              my_data_ptr += g->nbytes_elem;
+            }
+
+            uthread_incr_recv_nbytes(c->tid, num_elems * g->nbytes_elem);     // incr recv by number of used bytes
+            cmds_ptr += sizeof(* c);
+            data_ptr += c->get_bytes;
+            COUNT_EVENT(HELPER_CMD_REPLY_GET);
+          }
+          break;
+        case GMT_CMD_REPLY_GATHER:
+          {
+            cmd_rep_gather_t * c = (cmd_rep_gather_t *) gcmd;
+            gentry_t * g = mem_get_gentry(c->gmt_array);
+
+            uint8_t * my_ret_ptr = (uint8_t *)  ((uint64_t) c->ret_data_ptr);
+            uint8_t * my_index_ptr = (uint8_t *) ((uint64_t) c->index_ptr);
+            uint64_t first_index = * ((uint64_t *) my_index_ptr);
+
+            for (uint64_t i = 0; i < c->num_elems; i ++) {
+              uint64_t index = * ((uint64_t *) my_index_ptr);
+              uint8_t * my_data_ptr = data_ptr + (index - first_index) * g->nbytes_elem;
+
+              memcpy(my_ret_ptr, my_data_ptr, g->nbytes_elem);
+              my_index_ptr += sizeof(uint64_t);
+              my_ret_ptr += g->nbytes_elem;
+            }
+
+            uthread_incr_recv_nbytes(c->tid, c->num_elems * g->nbytes_elem);     // incr recv by number of used bytes
+            cmds_ptr += sizeof(* c);
             data_ptr += c->get_bytes;
             COUNT_EVENT(HELPER_CMD_REPLY_GET);
           }
