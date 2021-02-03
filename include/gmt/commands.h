@@ -79,7 +79,11 @@
 #define GMT_CMD_MTASKS_RES_REQ                  19
 #define GMT_CMD_MTASKS_RES_REPLY                20
 
-#define GMT_MAX_CMD_NUM                         20
+#define GMT_CMD_MEM_PUT                         21
+#define GMT_CMD_MEM_GET                         22
+#define GMT_CMD_MEM_STRIDED_PUT                 23
+
+#define GMT_MAX_CMD_NUM                         23
 
 typedef uint8_t cmd_type_t;
 
@@ -133,6 +137,26 @@ typedef struct PACKED_STR {
 typedef struct PACKED_STR {
   cmd_type_t type:CMD_TYPE_BITS;
   uint32_t tid:TID_BITS;
+  uint8_t* address;
+  uint64_t offset;
+  uint64_t put_bytes;
+} cmd_mem_put_t;
+
+typedef struct PACKED_STR {
+  cmd_type_t type:CMD_TYPE_BITS;
+  uint32_t tid:TID_BITS;
+  uint8_t* address;
+  uint64_t offset;
+  uint64_t chunk_offset;
+  uint64_t first_chunk_size;
+  uint64_t last_chunk_size;
+  uint64_t chunk_size;
+  uint64_t put_bytes;
+} cmd_mem_strided_put_t;
+
+typedef struct PACKED_STR {
+  cmd_type_t type:CMD_TYPE_BITS;
+  uint32_t tid:TID_BITS;
   gmt_data_t gmt_array;
   uint64_t offset;
   uint64_t value;
@@ -165,6 +189,15 @@ typedef struct PACKED_STR {
   uint64_t ret_data_ptr:VIRT_ADDR_PTR_BITS;
   uint64_t get_bytes;
 } cmd_get_t;
+
+typedef struct PACKED_STR {
+  cmd_type_t type:CMD_TYPE_BITS;
+  uint32_t tid:TID_BITS;
+  const uint8_t* address;
+  uint64_t offset;
+  uint64_t ret_data_ptr:VIRT_ADDR_PTR_BITS;
+  uint64_t get_bytes;
+} cmd_mem_get_t;
 
 typedef struct PACKED_STR {
   cmd_type_t type:CMD_TYPE_BITS;
@@ -273,10 +306,13 @@ INLINE uint64_t commands_max_cmd_size()
     sizeof(cmd_alloc_t),
     sizeof(cmd_free_t),
     sizeof(cmd_put_t),
+    sizeof(cmd_mem_put_t),
+    sizeof(cmd_mem_strided_put_t),
     sizeof(cmd_put_value_t),
     sizeof(cmd_atomic_cas_t),
     sizeof(cmd_atomic_add_t),
     sizeof(cmd_get_t),
+    sizeof(cmd_mem_get_t),
     sizeof(cmd_rep_value_t),
     sizeof(cmd_rep_get_t),
     sizeof(cmd_exec_t),

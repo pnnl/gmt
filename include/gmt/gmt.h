@@ -521,6 +521,64 @@ extern "C" {
                     gmt_data_t dst, uint64_t dst_elem_offset,
                     uint64_t num_elem);
 
+    /** 
+     * Copy from local memory to a remote memory location.
+     * Non blocking '_nb' waits completion with ::gmt_wait_data()
+     *
+     * @param[in]  rnid id of the destination node
+     * @param[in]  raddress address of the remote memory location
+     * @param[in]  data pointer to the local data
+     * @param[in]  num_bytes number of bytes to copy
+     *
+     * @ingroup GMT_module
+     */
+    void gmt_mem_put(uint32_t rnid, uint8_t* raddress,
+                     const uint8_t* data, uint64_t num_bytes);
+    void gmt_mem_put_nb(uint32_t rnid, uint8_t* raddress,
+                     const uint8_t* data, uint64_t num_bytes);
+
+    /** 
+     * Copy from a remote memory location to local memory.
+     * Requires local memory to be pre-allocated.
+     * Non blocking '_nb' waits completion with ::gmt_wait_data()
+     *
+     * @param[in]  rnid id of the destination node
+     * @param[out] laddress address of the local memory location
+     * @param[in]  raddress address of the remote memory location
+     * @param[in]  num_bytes number of bytes to copy
+     *
+     * @ingroup GMT_module
+     */
+    void gmt_mem_get(uint32_t rnid, uint8_t* laddress,
+                     const uint8_t* raddress, uint64_t num_bytes);
+    void gmt_mem_get_nb(uint32_t rnid, uint8_t* laddress,
+                     const uint8_t* raddress, uint64_t num_bytes);
+
+    /** 
+     * Copy, in chunks, from local memory to a remote memory location,
+     * with a stride of chunk_offset bytes (on the remote node).
+     * Non blocking '_nb' waits completion with ::gmt_wait_data()
+     *
+     * @param[in]  rnid id of the destination node
+     * @param[in]  raddress address of the remote memory location
+     * @param[in]  data pointer to the local data
+     * @param[in]  chunk_offset stride in bytes
+     * @param[in]  chunk_size size of each chunk to copy, in bytes
+     * @param[in]  num_chunks number of chunks to copy
+     *
+     * @ingroup GMT_module
+     */
+    void gmt_mem_strided_put_nb(uint32_t rnid, uint8_t* raddress,
+                                const uint8_t* data,
+                                uint64_t chunk_offset,
+                                uint64_t chunk_size, //in bytes
+                                uint64_t num_chuncks);
+    void gmt_mem_strided_put(uint32_t rnid, uint8_t* raddress,
+                             const uint8_t* data,
+                             uint64_t chunk_offset,
+                             uint64_t chunk_size, //in bytes
+                             uint64_t num_chuncks);
+
     /**
      * Waits for completion of any non blocking put/get/atomic data operation on
      * ::gmt_data_t such as ::gmt_put_nb(), ::gmt_put_value_nb(), 

@@ -460,6 +460,50 @@ INLINE void helper_check_in_buffers(bool postpone, uint32_t hid)
             COUNT_EVENT(HELPER_CMD_PUT);
           }
           break;
+        case GMT_CMD_MEM_PUT:
+          {
+            cmd_mem_put_t *c = (cmd_mem_put_t *) gcmd;
+            _assert(c->put_bytes > 0);
+            mem_put(c->address, data_ptr, c->put_bytes);
+            helper_send_rep_ack(rnid, hid, c->tid);
+            cmds_ptr += sizeof(*c);
+            data_ptr += c->put_bytes;
+            COUNT_EVENT(HELPER_CMD_MEM_PUT);
+          }
+          break;
+        case GMT_CMD_MEM_STRIDED_PUT:
+          {
+            cmd_mem_strided_put_t *c = (cmd_mem_strided_put_t *) gcmd;
+            _assert(c->put_bytes > 0);
+            uint8_t* address = c->address;
+            uint8_t* curr_data_ptr = data_ptr;
+            uint64_t put_bytes = c->put_bytes;
+            if (c->first_chunk_size > 0)
+            {
+              mem_put(address, curr_data_ptr, c->first_chunk_size);
+              curr_data_ptr += c->first_chunk_size;
+              address += c->first_chunk_size;
+              put_bytes -= c->first_chunk_size;
+            }
+            if (c->last_chunk_size > 0)
+            {
+              put_bytes -= c->last_chunk_size;
+              mem_put(address+put_bytes, curr_data_ptr+put_bytes, c->last_chunk_size);
+            }
+            _assert((put_bytes % c->chunk_size) == 0);
+            while (put_bytes > 0)
+            {
+              mem_put(address, curr_data_ptr, c->chunk_size);
+              curr_data_ptr += c->chunk_size;
+              address += c->chunk_offset;
+              put_bytes -= c->chunk_size;
+            }
+            helper_send_rep_ack(rnid, hid, c->tid);
+            cmds_ptr += sizeof(*c);
+            data_ptr += c->put_bytes;
+            COUNT_EVENT(HELPER_CMD_MEM_STRIDED_PUT);
+          }
+          break;
         case GMT_CMD_PUT_VALUE:
           {
             cmd_put_value_t *c = (cmd_put_value_t *) gcmd;
@@ -476,6 +520,35 @@ INLINE void helper_check_in_buffers(bool postpone, uint32_t hid)
             cmd_get_t *c = (cmd_get_t *) gcmd;
             gentry_t *g = mem_get_gentry(c->gmt_array);
             uint8_t *data = mem_get_loc_ptr(g, c->offset, c->get_bytes);
+            uint64_t boffset = 0;
+            while (boffset < c->get_bytes) {
+              uint32_t granted_nbytes = 0;
+              cmd_rep_get_t *cr;
+              cr = (cmd_rep_get_t *) agm_get_cmd(rnid,
+                  hid + NUM_WORKERS,
+                  sizeof
+                  (cmd_rep_get_t),
+                  c->get_bytes -
+                  boffset,
+                  &granted_nbytes);
+              _assert(granted_nbytes > 0
+                  && granted_nbytes <= COMM_BUFFER_SIZE);
+              cr->type = GMT_CMD_REPLY_GET;
+              cr->tid = c->tid;
+              cr->ret_data_ptr = c->ret_data_ptr + boffset;
+              cr->get_bytes = granted_nbytes;
+              agm_set_cmd_data(rnid, hid + NUM_WORKERS,
+                  data + boffset, granted_nbytes);
+              boffset += granted_nbytes;
+            }
+            cmds_ptr += sizeof(*c);
+            COUNT_EVENT(HELPER_CMD_GET);
+          }
+          break;
+        case GMT_CMD_MEM_GET:
+          {
+            cmd_mem_get_t *c = (cmd_mem_get_t *) gcmd;
+            const uint8_t *data = c->address;
             uint64_t boffset = 0;
             while (boffset < c->get_bytes) {
               uint32_t granted_nbytes = 0;
