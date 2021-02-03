@@ -18,6 +18,8 @@
 #include "gmt/memory.h"
 #include "sort.h"
 
+extern "C" int gmt_main (uint64_t argc, char * argv[] );
+
 #define PREFIX_SIZE 80
 #define SCHEMA_NAME_WORDS 3
 #define SCHEMA_ELEMS_BYTES ((SCHEMA_NAME_WORDS + 1) * sizeof(uint64_t))

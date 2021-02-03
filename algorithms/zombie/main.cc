@@ -1,7 +1,7 @@
 #include "main.h"
 #include <numeric>
 
-int gmt_main ( int argc, char * argv[] ) {
+int gmt_main (uint64_t argc, char * argv[]) {
   if (argc != 7) {printf("Usage: <netfow file> <lb ub> <event file> <lb ub>\n"); return 1;}
 
   double time0 = gmt_timer();
