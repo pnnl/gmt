@@ -100,6 +100,74 @@ static inline void cmd_put_data(uint32_t tid, uint32_t wid,
     }
 }
 
+static inline void cmd_mem_put_data(uint32_t tid, uint32_t wid,
+                                    uint32_t rnid, uint8_t* address,
+                                    const uint8_t *data,
+                                    uint64_t nbytes)
+{
+    uint64_t offset = 0;
+    while (offset < nbytes) {
+        uint32_t granted_nbytes = 0;
+        cmd_mem_put_t *cmd = (cmd_mem_put_t *) agm_get_cmd(rnid, wid,
+                                                   sizeof(cmd_mem_put_t),
+                                                   nbytes - offset,
+                                                   &granted_nbytes);
+        _assert(granted_nbytes > 0);
+        _assert(granted_nbytes <= COMM_BUFFER_SIZE);
+
+        cmd->type = GMT_CMD_MEM_PUT;
+        cmd->address = address + offset;
+        cmd->tid = tid;
+        cmd->put_bytes = granted_nbytes;
+        uthread_incr_req_nbytes(tid, sizeof(uint64_t));
+        agm_set_cmd_data(rnid, wid,
+                         ((uint8_t * const)data) + offset, granted_nbytes);
+
+        offset += granted_nbytes;
+    }
+}
+
+static inline void cmd_mem_strided_put_data(uint32_t tid, uint32_t wid,
+                                            uint32_t rnid, uint8_t* address,
+                                            const uint8_t *data,
+                                            uint64_t chunk_offset,
+                                            uint64_t chunk_size,
+                                            uint64_t nbytes)
+{
+    uint64_t proc_bytes = 0;
+    uint64_t first_chunck_size = 0;
+    uint64_t last_chunck_size = 0;
+    while (proc_bytes < nbytes) {
+        uint32_t granted_nbytes = 0;
+        cmd_mem_strided_put_t *cmd = 
+           (cmd_mem_strided_put_t *) agm_get_cmd(rnid, wid,
+                                                 sizeof(cmd_mem_strided_put_t),
+                                                 nbytes - proc_bytes,
+                                                 &granted_nbytes);
+        _assert(granted_nbytes > 0);
+        _assert(granted_nbytes <= COMM_BUFFER_SIZE);
+        last_chunck_size = (granted_nbytes - first_chunck_size) % chunk_size;
+        cmd->type = GMT_CMD_MEM_STRIDED_PUT;
+        cmd->address = address;
+        cmd->chunk_offset = chunk_offset;
+        cmd->chunk_size = chunk_size;
+        cmd->first_chunk_size = first_chunck_size;
+        cmd->last_chunk_size = last_chunck_size;
+        cmd->tid = tid;
+        cmd->put_bytes = granted_nbytes;
+        uthread_incr_req_nbytes(tid, sizeof(uint64_t));
+        agm_set_cmd_data(rnid, wid, ((uint8_t * const)data) + proc_bytes,
+                         granted_nbytes);
+        uint64_t nelem = (granted_nbytes - first_chunck_size) / chunk_size;
+        uint64_t offset = nelem*chunk_offset + last_chunck_size;
+        address += offset;
+        proc_bytes += granted_nbytes;
+        if (last_chunck_size > 0) {
+            first_chunck_size = chunk_size - last_chunck_size;
+        }
+    }
+}
+
 static inline void cmd_put_value(uint32_t tid, uint32_t wid,
                                  uint32_t rnid, gmt_data_t gmt_array,
                                  uint64_t roffset_bytes, uint64_t value)
@@ -200,6 +268,42 @@ GMT_INLINE void gmt_put_nb(gmt_data_t gmt_array, uint64_t elem_offset,
         goffset_cur += avail_bytes;
         data_cur += avail_bytes;
     }
+}
+
+GMT_INLINE void gmt_mem_put_nb(uint32_t rnid, uint8_t* raddress,
+                               const uint8_t* data, uint64_t num_bytes)
+{
+    if (rnid == node_id) {
+        mem_put(raddress, data, num_bytes);
+        return;
+    }
+    uint32_t tid = uthread_get_tid();
+    uint32_t wid = uthread_get_wid(tid);
+    cmd_mem_put_data(tid, wid, rnid, raddress, data, num_bytes);
+    COUNT_EVENT(WORKER_GMT_MEM_PUT_REMOTE);
+}
+
+GMT_INLINE void gmt_mem_strided_put_nb(uint32_t rnid, uint8_t* raddress,
+                                       const uint8_t* data,
+                                       uint64_t chunk_offset,
+                                       uint64_t chunk_size,
+                                       uint64_t num_chunks)
+{
+    if (rnid == node_id)
+    {
+        for (uint64_t i = 0; i < num_chunks; ++i)
+        {
+            mem_put(raddress, data, chunk_size);
+            raddress += chunk_offset;
+            data += chunk_size;
+        }
+        return;
+    }
+    uint32_t tid = uthread_get_tid();
+    uint32_t wid = uthread_get_wid(tid);
+    cmd_mem_strided_put_data(tid, wid, rnid, raddress, data,
+                             chunk_offset, chunk_size, chunk_size*num_chunks);
+    COUNT_EVENT(WORKER_GMT_MEM_STRIDED_PUT_REMOTE);
 }
 
 GMT_INLINE void gmt_put_value_nb(gmt_data_t gmt_array, uint64_t elem_offset,
@@ -312,6 +416,30 @@ GMT_INLINE void gmt_get_nb(gmt_data_t gmt_array, uint64_t elem_offset,
         goffset_cur += avail_bytes;
         data_cur += avail_bytes;
     }
+}
+
+GMT_INLINE void gmt_mem_get_nb(uint32_t rnid, uint8_t* data,
+                               const uint8_t* raddress, uint64_t nbytes)
+{
+    if (rnid == node_id)
+    {
+        memcpy(data, raddress, nbytes);
+        return;
+    }
+    uint32_t tid = uthread_get_tid();
+    uint32_t wid = uthread_get_wid(tid);
+    cmd_mem_get_t *cmd = (cmd_mem_get_t *) agm_get_cmd(rnid, wid,
+                                                       sizeof(cmd_get_t),
+                                                       0, NULL);
+    cmd->address = raddress;
+    cmd->get_bytes = nbytes;
+    _assert((uint64_t) data >> VIRT_ADDR_PTR_BITS == 0);
+    cmd->ret_data_ptr = (uint64_t) data;            
+    cmd->tid = tid;
+    cmd->type = GMT_CMD_MEM_GET;
+    uthread_incr_req_nbytes(tid, nbytes);
+    agm_set_cmd_data(rnid, wid, NULL, 0);
+    COUNT_EVENT(WORKER_GMT_MEM_GET_REMOTE);
 }
 
 INLINE void _atomic_add_remote(uint32_t tid, uint32_t wid,
@@ -455,6 +583,30 @@ GMT_INLINE void gmt_put(gmt_data_t gmt_array, uint64_t goffset_bytes,
              const void *data, uint64_t num_bytes)
 {
     gmt_put_nb(gmt_array, goffset_bytes, data, num_bytes);
+    gmt_wait_data();
+}
+
+GMT_INLINE void gmt_mem_get(uint32_t rnid, uint8_t* data,
+                            const uint8_t* raddress, uint64_t nbytes)
+{
+     gmt_mem_get_nb(rnid, data, raddress, nbytes);
+     gmt_wait_data();
+}
+
+GMT_INLINE void gmt_mem_put(uint32_t rnid, uint8_t* raddress,
+                            const uint8_t* data, uint64_t num_bytes)
+{
+    gmt_mem_put_nb(rnid, raddress, data, num_bytes);
+    gmt_wait_data();
+}
+
+GMT_INLINE void gmt_mem_strided_put(uint32_t rnid, uint8_t* raddress,
+                                    const uint8_t* data,
+                                    uint64_t chunk_offset,
+                                    uint64_t chunck_size,
+                                    uint64_t num_chunks)
+{
+    gmt_mem_strided_put_nb(rnid, raddress, data, chunk_offset, chunck_size, num_chunks);
     gmt_wait_data();
 }
 
