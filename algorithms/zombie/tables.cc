@@ -3,8 +3,10 @@
 /******************** ARGS ********************/
 typedef struct rf_args_t {
   uint64_t lb;
-  gmt_data_t tables;
+  gmt_data_t data;
   gmt_data_t schema;
+  gmt_data_t starts;
+  gmt_data_t addresses;
   char prefix[PREFIX_SIZE];
 } rf_args_t;
 
@@ -87,22 +89,20 @@ void readTableFile(uint64_t it, uint64_t num_iter, const void * args, gmt_handle
   gmt_data_t schema = my_args->schema;
   uint64_t num_cols = gmt_nelems_tot(schema);
   std::string filename = my_args->prefix + std::to_string(my_args->lb + it);
+  std::vector <SchemaType> schemaTypes = getSchemaTypes(num_cols, my_args->schema);
 
   std::string line;
   std::ifstream file(filename);
   if (! file.is_open()) { printf("Cannot open file %s\n", filename.c_str()); exit(-1); }
 
-// count rows
-  uint64_t num_rows = 0;
-  while (getline(file, line)) if (line[0] != '#') num_rows ++;     // skip comments
-  uint64_t * data = (uint64_t *) malloc(num_rows * num_cols * sizeof(uint64_t));
+// reserve space for data, assume 40 bytes per row
+  file.seekg (file.end);
+  std::vector <uint64_t> data;
+  data.reserve( file.tellg() / 40 );
 
 // reset file
   file.clear();
   file.seekg(0);
-
-  uint64_t elem = 0;
-  std::vector <SchemaType> schemaTypes = getSchemaTypes(num_cols, my_args->schema);
 
   while (getline(file, line)) {
      if (line[0] == '#') continue;     // skip comments
@@ -112,15 +112,25 @@ void readTableFile(uint64_t it, uint64_t num_iter, const void * args, gmt_handle
        std::string::iterator end = std::find(start, line.end(), ',');
        std::string field = std::string(start, end);
 
-       data[elem] = String_to_Uint(field, schemaTypes[j]);
+       data.push_back(String_to_Uint(field, schemaTypes[j]));
        start = end + 1;
-       elem ++;
   } }
 
-  gmt_data_t table = gmt_alloc(num_rows, num_cols * sizeof(uint64_t), GMT_ALLOC_PARTITION_FROM_ZERO, "RTF");
-  gmt_put(my_args->tables, it, (void *) (& table), 1);
-  gmt_put(table, 0, (void *) data, num_rows);
-  free(data);
+  uint64_t num_rows = data.size() / num_cols;
+  gmt_put_value(my_args->starts, it + 1, num_rows);
+  gmt_put_value(my_args->addresses, it, (uint64_t) (data.data()));
+  new (& data) std::vector <uint64_t>;     // reassign data to an empty vector to deallocate at end-of-scope
+}
+
+
+void moveTableFile(uint64_t it, uint64_t num_iter, const void * args, gmt_handle_t handle) {
+  rf_args_t * my_args = (rf_args_t *) args;
+  uint64_t start = gmt_get_value(my_args->starts, it);
+  uint64_t num_rows = gmt_get_value(my_args->starts, it + 1) - start;
+
+  void * address = (void *) gmt_get_value(my_args->addresses, it);
+  gmt_put(my_args->data, start, address, num_rows);
+  free(address);
 }
 
 
@@ -132,49 +142,47 @@ void readTableFiles(const void * args, uint32_t args_size, void * ret, uint32_t 
   uint64_t ub = my_args->ub;
   uint64_t num_files = ub - lb + 1;
   uint64_t num_cols = gmt_nelems_tot(my_args->schema);
-  gmt_data_t tables = gmt_alloc(num_files, sizeof(gmt_data_t), GMT_ALLOC_LOCAL, "Tables");
+  gmt_data_t starts = gmt_alloc(num_files + 1, sizeof(uint64_t), GMT_ALLOC_PARTITION_FROM_ZERO, "");
+  gmt_data_t addresses = gmt_alloc(num_files, sizeof(uint64_t *), GMT_ALLOC_PARTITION_FROM_ZERO, "");
 
   rf_args_t rfArgs;
   rfArgs.lb = lb;
-  rfArgs.tables = tables;
+  rfArgs.starts = starts;
+  rfArgs.addresses = addresses;
   rfArgs.schema = my_args->schema;
   memcpy(rfArgs.prefix, my_args->prefix, PREFIX_SIZE);
 
   gmt_for_loop(num_files, 1, readTableFile, & rfArgs, sizeof(rf_args_t), GMT_SPAWN_SPREAD);
   printf("     all %s files read, time = %lf\n", my_args->prefix, my_timer() - time1);
+  time1 = my_timer();
 
-// allocate table
-  std::vector <uint64_t> starts(num_files + 1, 0);
 
 // first sum of table lengths
-  for (uint64_t i = 0; i < num_files; i ++) {
-      gmt_data_t table;
-      gmt_get(tables, i, (void *) (& table), 1);
-      starts[i + 1] = starts[i] + gmt_nelems_tot(table);
+  uint64_t start = 0;
+  gmt_put_value(starts, 0, start);
+
+  for (uint64_t i = 1; i <= num_files; i ++) {
+      start += gmt_get_value(starts, i);
+      gmt_put_value(starts, i, start);
   }
 
 // allocate return table
-  uint64_t num_rows = starts[num_files];
-  gmt_data_t data = gmt_alloc(num_rows, num_cols * sizeof(uint64_t), GMT_ALLOC_PARTITION_FROM_ZERO, my_args->prefix);
-
-// move individual tables to return table
-  for (uint64_t i = 0; i < num_files; i ++) {
-      gmt_data_t table;
-      gmt_get(tables, i, (void *) (& table), 1);
-      gmt_memcpy(table, 0, data, starts[i], gmt_nelems_tot(table));
-      gmt_free(table);
-  }
+  uint64_t num_rows = start;
+  rfArgs.data = gmt_alloc(num_rows, num_cols * sizeof(uint64_t), GMT_ALLOC_PARTITION_FROM_ZERO, my_args->prefix);
+  gmt_for_loop(num_files, 1, moveTableFile, & rfArgs, sizeof(rf_args_t), GMT_SPAWN_SPREAD);
 
   Table newTable;
-  newTable.data = data;
+  newTable.data = rfArgs.data;
   newTable.num_rows = num_rows;
   newTable.num_cols = num_cols;
 
   sortTable(& newTable, my_args->columns);
 
-  gmt_free(tables);
   * ret_size = sizeof(gmt_data_t);
   ((gmt_data_t *) ret)[0] = newTable.data;
+
+  gmt_free(starts);
+  gmt_free(addresses);
   printf("     table for %s files created, time = %lf\n", my_args->prefix, my_timer() - time1);
 }
 
@@ -302,7 +310,7 @@ void _UniqueTable(const void * args, uint32_t args_size, void * ret, uint32_t * 
 }
 
 
-// Construct a table of unique values in the selected columns in column 0 and zero in the other columns
+// Construct a table of unique values in the selected columns in column 0 and ULLONG_MAX in the other columns
 Table uniqueTable(uint64_t columns[SORT_COLS], gmt_data_t & schema, Table & table, std::string & name) {
   uint32_t retSize;
   uint64_t num_nodes = gmt_num_nodes();

@@ -517,7 +517,7 @@ INLINE void helper_check_in_buffers(bool postpone, uint32_t hid)
               int64_t * new_value_ptr = (int64_t *) & new_value;
               if (__sync_bool_compare_and_swap(p, * old_value_ptr, * new_value_ptr)) break;
             }
-            helper_send_double_rep_value(rnid, hid, c->tid, c->ret_value_ptr, old_value);
+            helper_send_rep_value(rnid, hid, c->tid, c->ret_value_ptr, old_value);
             cmds_ptr += sizeof(*c);
             COUNT_EVENT(HELPER_CMD_ATOMIC_MAX);
           }
@@ -536,7 +536,7 @@ INLINE void helper_check_in_buffers(bool postpone, uint32_t hid)
               int64_t * new_value_ptr = (int64_t *) & new_value;
               if (__sync_bool_compare_and_swap(p, * old_value_ptr, * new_value_ptr)) break;
             }
-            helper_send_double_rep_value(rnid, hid, c->tid, c->ret_value_ptr, old_value);
+            helper_send_rep_value(rnid, hid, c->tid, c->ret_value_ptr, old_value);
             cmds_ptr += sizeof(*c);
             COUNT_EVENT(HELPER_CMD_ATOMIC_MIN);
           }

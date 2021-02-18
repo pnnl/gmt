@@ -327,20 +327,23 @@ GMT_INLINE void gmt_for_loop_with_handle(uint64_t num_it, uint32_t it_per_task,
     }
   }
   n_nodes = MIN(n_tasks, n_nodes);
-  uint32_t tpn = CEILING(n_tasks, n_nodes);   //tasks per node
+  uint32_t extra_tasks = n_tasks % n_nodes;       // residual tasks
+  uint64_t task_per_node = n_tasks / n_nodes;     // minimun tasks per node
+  uint64_t it_per_node = task_per_node * it_per_task;
 
   //     _DEBUG
   //         ("nit %ld - itpt %ld - n_tasks %ld - n_nodes %d - s_node %d - tpn %d - handle %d\n",
   //          num_it, it_per_task, n_tasks, n_nodes, s_node, tpn, handle);
-  _assert(tpn * n_nodes >= n_tasks);
-  uint32_t i;
-  for (i = 0; i < n_nodes; i++) {
+  //
+  uint64_t it_start = 0;
+  for (uint32_t i = 0; i < n_nodes; i++) {
+    uint64_t my_it = it_per_node;
+    if (i < extra_tasks) my_it += it_per_task;     // this node has an extra task
+    uint64_t it_end = MIN(it_start + my_it, num_it);
     uint32_t n = get_next_node(s_node, i, n_nodes, policy);
-    /* get start and end iteration of this mtask */
-    uint64_t it_start = i * tpn * it_per_task;
-    uint64_t it_end = MIN(num_it, (i + 1) * tpn * it_per_task);
-    for_at(tid, wid, n, GMT_DATA_NULL, it_start, it_end, it_per_task,
-        (void *)func, args, args_bytes, handle);
+
+    for_at(tid, wid, n, GMT_DATA_NULL, it_start, it_end, it_per_task, (void *)func, args, args_bytes, handle);
+    it_start += my_it;
   }
 }
 

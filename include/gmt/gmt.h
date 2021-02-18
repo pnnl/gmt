@@ -493,7 +493,7 @@ extern "C" {
     //@{
     /** 
      * Writes an element into a GMT array passing it by value. Can only be used 
-     * for array containing elements different than 8,4,2 or 1 bytes.
+     * for array containing elements of size 8,4,2 or 1 bytes.
      * Non blocking '_nb' waits completion with ::gmt_wait_data()
      *
      * @param[in] gmt_array destination GMT array 
@@ -524,6 +524,19 @@ extern "C" {
                  void *elem, uint64_t num_elem);
     void gmt_get_nb(gmt_data_t gmt_array, uint64_t elem_offset,
                     void *elem, uint64_t num_elem);
+    //@}
+    //
+    //@{
+    /** 
+     * Copy an element from a GMT array to the local memory. Can only be used
+     * for arrays of size 8 bytes. No blocking version.
+     *
+     * @param[in] gmt_array destination GMT array 
+     * @param[in] elem_offset offset in number of elements in the GMT array
+     *
+     * @ingroup GMT_module
+     */
+    uint64_t gmt_get_value(gmt_data_t gmt_array, uint64_t elem_offset);
     //@}
 
     //@{
@@ -562,6 +575,10 @@ extern "C" {
      *
      * @ingroup GMT_module
      */
+    void gmt_memcpy_nb(gmt_data_t src, uint64_t src_elem_offset,
+                    gmt_data_t dst, uint64_t dst_elem_offset,
+                    uint64_t num_elem);
+
     void gmt_memcpy(gmt_data_t src, uint64_t src_elem_offset,
                     gmt_data_t dst, uint64_t dst_elem_offset,
                     uint64_t num_elem);

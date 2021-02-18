@@ -136,55 +136,25 @@ uint64_t upperbound(uint64_t * keyRow, gmt_data_t data, Comparator comp) {
 }
 
 /********** SORT **********/
-#define BUFFER_SIZE 8192 
-
-typedef struct elem_buffer_t {
-  uint64_t lb;
-  uint64_t ub;
-  uint64_t * buffer;
-} elem_buffer_t;
-
-INLINE uint64_t * get_buffer_elem(uint64_t index, uint64_t num_cols, elem_buffer_t & buffer, gmt_data_t data) {
-  if ( (index < buffer.lb) || (index > buffer.ub) ) {
-     buffer.ub = index;
-     buffer.lb = (index < BUFFER_SIZE) ? 0 : index - BUFFER_SIZE + 1;
-     gmt_get(data, buffer.lb, (void *) buffer.buffer, BUFFER_SIZE);
-  }
-  return buffer.buffer + (index - buffer.lb) * num_cols;
-}
-
-
 template <typename Comparator >
-void corank_sorted(const uint64_t index, uint64_t * corank, uint64_t num_cols,
+void corank_sorted(const uint64_t index, uint64_t * corank, uint64_t num_bytes,
                    gmt_data_t left,  const uint64_t leftoffset,  const uint64_t leftsize,
                    gmt_data_t right, const uint64_t rightoffset, const uint64_t rightsize, Comparator comp) {
-
-  uint64_t j = MIN(index, leftsize);
-  uint64_t k = index - j;
-
-// if true, for loop returns immediately
-  if ( (j <= 0 || k >= rightsize) && (k <= 0 || j >= leftsize) ) {corank[0] = j; corank[1] = k; return;}
-
   uint64_t delta;
-  uint64_t klow = ULLONG_MAX;
+  uint64_t j    = MIN(index, leftsize);
   uint64_t jlow = (index <= rightsize) ? 0 : index - rightsize;
+  uint64_t k    = index - j;
+  uint64_t klow = ULLONG_MAX;
 
-  elem_buffer_t fromleft;
-  fromleft.lb = ULLONG_MAX;
-  fromleft.ub = ULLONG_MAX;
-  fromleft.buffer = (uint64_t *) malloc(BUFFER_SIZE * num_cols * sizeof(uint64_t));
-
-  elem_buffer_t fromright;
-  fromright.lb = ULLONG_MAX;
-  fromright.ub = ULLONG_MAX;
-  fromright.buffer = (uint64_t *) malloc(BUFFER_SIZE * num_cols * sizeof(uint64_t));
+  uint64_t * fromleft  = (uint64_t *) malloc(num_bytes);
+  uint64_t * fromright = (uint64_t *) malloc(num_bytes);
 
   for ( ; ;) {
       if (j > 0 && k < rightsize) {
-         uint64_t * left_elem  = get_buffer_elem(leftoffset + j - 1, num_cols, fromleft,  left);
-         uint64_t * right_elem = get_buffer_elem(rightoffset + k,    num_cols, fromright, right);
+         gmt_get(left,  leftoffset + j - 1, (void *) fromleft,  1);
+         gmt_get(right, rightoffset + k,    (void *) fromright, 1);
 
-         if ( comp(right_elem, left_elem) ) {
+         if ( comp(fromright, fromleft) ) {
             delta = CEILING(j - jlow, 2);
             klow = k;
             j   -= delta;
@@ -193,10 +163,10 @@ void corank_sorted(const uint64_t index, uint64_t * corank, uint64_t num_cols,
       }   }
 
       if (k > 0 && j < leftsize) {
-         uint64_t * left_elem  = get_buffer_elem(leftoffset + j,      num_cols, fromleft,  left);
-         uint64_t * right_elem = get_buffer_elem(rightoffset + k - 1, num_cols, fromright, right);
+         gmt_get(left,  leftoffset + j,      (void *) fromleft,  1);
+         gmt_get(right, rightoffset + k - 1, (void *) fromright, 1);
 
-         if ( ! comp(right_elem, left_elem) ) {
+         if ( ! comp(fromright, fromleft) ) {
             delta = CEILING(k - klow, 2);
             jlow  = j;
             j    += delta;
@@ -209,21 +179,21 @@ void corank_sorted(const uint64_t index, uint64_t * corank, uint64_t num_cols,
 
   corank[0] = j;
   corank[1] = k;
-  free(fromleft.buffer);
-  free(fromright.buffer);
+  free(fromleft);
+  free(fromright);
 }
 
 
 template <typename Comparator >
-void merge_block_section(uint64_t id, uint64_t num_coworkers, uint64_t num_cols,
+void merge_block_section(uint64_t id, uint64_t num_coworkers, uint64_t num_bytes,
       uint64_t start, uint64_t mid, uint64_t end, gmt_data_t outdata, gmt_data_t indata, Comparator comp) {
 
   uint64_t i[2], lower[2], upper[2];
   i[0] = id       * (end - start) / num_coworkers;
   i[1] = (id + 1) * (end - start) / num_coworkers;
 
-  corank_sorted(i[0], lower, num_cols, indata, start, mid - start, indata, mid, end - mid, comp);
-  corank_sorted(i[1], upper, num_cols, indata, start, mid - start, indata, mid, end - mid, comp);
+  corank_sorted(i[0], lower, num_bytes, indata, start, mid - start, indata, mid, end - mid, comp);
+  corank_sorted(i[1], upper, num_bytes, indata, start, mid - start, indata, mid, end - mid, comp);
 
   uint64_t leftsize    = upper[0] - lower[0];
   uint64_t rightsize   = upper[1] - lower[1];
@@ -238,15 +208,15 @@ void merge_block_section(uint64_t id, uint64_t num_coworkers, uint64_t num_cols,
   else if (leftsize  == 0) {gmt_memcpy(indata, start_right, outdata, start + i[0], rightsize); return; }
 
 // get left and right side
-  uint64_t num_rows = leftsize + rightsize;
-  uint64_t * buffer = (uint64_t *) malloc(2 * num_rows * num_cols * sizeof(uint64_t));
-  uint64_t * buffer_out = buffer + num_rows * num_cols;
+  uint64_t num_elems = leftsize + rightsize;
+  uint8_t * buffer_in = (uint8_t *) malloc(num_elems * num_bytes);
+  uint8_t * buffer_out = (uint8_t *) malloc(num_elems * num_bytes);
 
-  uint64_t * outPtr = buffer_out;
-  uint64_t * leftPtr = buffer;
-  uint64_t * leftEnd = leftPtr + leftsize * num_cols;
-  uint64_t * rightPtr = leftEnd;
-  uint64_t * rightEnd = rightPtr + rightsize * num_cols;
+  uint8_t * outPtr = buffer_out;
+  uint8_t * leftPtr = buffer_in;
+  uint8_t * leftEnd = leftPtr + leftsize * num_bytes;
+  uint8_t * rightPtr = leftEnd;
+  uint8_t * rightEnd = rightPtr + rightsize * num_bytes;
 
   gmt_get(indata, start_left, (void *) leftPtr, leftsize);
   gmt_get(indata, start_right, (void *) rightPtr, rightsize);
@@ -254,22 +224,23 @@ void merge_block_section(uint64_t id, uint64_t num_coworkers, uint64_t num_cols,
 // merge left and right side
   while ( (leftPtr < leftEnd) || (rightPtr < rightEnd) ) {
      if (leftPtr == leftEnd) {
-        memcpy(outPtr, rightPtr, (rightEnd - rightPtr) * sizeof(uint64_t));
+        memcpy(outPtr, rightPtr, (rightEnd - rightPtr));
         rightPtr = rightEnd;
      } else if (rightPtr == rightEnd) {
-        memcpy(outPtr, leftPtr, (leftEnd - leftPtr) * sizeof(uint64_t));
+        memcpy(outPtr, leftPtr, (leftEnd - leftPtr));
         leftPtr = leftEnd;
-     } else if ( comp(leftPtr, rightPtr) ) {
-        memcpy(outPtr, leftPtr, num_cols * sizeof(uint64_t));
-        outPtr += num_cols; leftPtr += num_cols;
+     } else if ( comp((uint64_t *) leftPtr, (uint64_t *) rightPtr) ) {
+        memcpy(outPtr, leftPtr, num_bytes);
+        outPtr += num_bytes; leftPtr += num_bytes;
      } else {
-        memcpy(outPtr, rightPtr, num_cols * sizeof(uint64_t));
-        outPtr += num_cols; rightPtr += num_cols;
+        memcpy(outPtr, rightPtr, num_bytes);
+        outPtr += num_bytes; rightPtr += num_bytes;
   }  }
 
-  gmt_put(outdata, start + i[0], (void *) buffer_out, num_rows);
+  gmt_put(outdata, start + i[0], (void *) buffer_out, num_elems);
 
-  free(buffer);
+  free(buffer_in);
+  free(buffer_out);
 }
 
 

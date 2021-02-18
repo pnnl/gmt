@@ -184,109 +184,106 @@ typedef struct memcpy_func_args_t {
     gmt_data_t g_dst;
     uint64_t g_src_offset;
     uint64_t g_dst_offset;
-    uint64_t nbytes;
+    uint64_t nelems;
 } memcpy_func_args_t;
 
 /* function used with GMT execute to perform mem_copy */
 uint32_t _memcpy_func(void *args, void *ret)
 {
-    memcpy_func_args_t *la = (memcpy_func_args_t *) args;
-    int64_t l_src_offset = -1;
-    gentry_t *const ga_src =
-        mem_get_gentry(la->g_src);
-    mem_check_last_byte(ga_src, la->g_src_offset + la->nbytes);
+    memcpy_func_args_t * la = (memcpy_func_args_t *) args;
+    gentry_t * const ga_src = mem_get_gentry(la->g_src);
+
+    uint64_t bytes_per_elem = ga_src->nbytes_elem;
+    mem_check_last_byte(ga_src, (la->g_src_offset + la->nelems) * bytes_per_elem);
     _assert(ga_src != NULL);
 
-    bool retvalue = mem_gmt_data_is_local(ga_src, la->g_src, la->g_src_offset,
-                                          &l_src_offset);
+    int64_t l_src_offset    = -1;
+    bool retvalue = mem_gmt_data_is_local(ga_src, la->g_src, la->g_src_offset * bytes_per_elem, &l_src_offset);
 
     _unused(retvalue);
     _unused(ret);
     _assert(retvalue == true);
     _assert(l_src_offset != -1);
+    _assert(la->nelems * bytes_per_elem <= ga_src->nbytes_loc - l_src_offset);
 
-    _assert(la->nbytes <= ga_src->nbytes_loc - l_src_offset);
-    gmt_put(la->g_dst, la->g_dst_offset, &ga_src->data[l_src_offset],
-            la->nbytes);
+    gmt_put_nb(la->g_dst, la->g_dst_offset, &ga_src->data[l_src_offset], la->nelems);
     return 0;
 }
 
 GMT_INLINE void gmt_memcpy(gmt_data_t g_src, uint64_t g_src_offset,
-                gmt_data_t g_dst, uint64_t g_dst_offset, uint64_t nbytes)
+                gmt_data_t g_dst, uint64_t g_dst_offset, uint64_t num_elems) {
+
+  gmt_memcpy_nb(g_src, g_src_offset, g_dst, g_dst_offset, num_elems);
+
+  gmt_wait_data();
+  gmt_wait_execute_nb();
+}
+
+GMT_INLINE void gmt_memcpy_nb(gmt_data_t g_src, uint64_t g_src_offset,
+                gmt_data_t g_dst, uint64_t g_dst_offset, uint64_t num_elems)
 {
     uint64_t g_src_offset_cur = g_src_offset;
     uint64_t g_dst_offset_cur = g_dst_offset;
-    uint64_t g_src_offset_end = g_src_offset + nbytes;
+    uint64_t g_src_offset_end = g_src_offset + num_elems;
 
-    gentry_t *const ga_src = mem_get_gentry(g_src);
-    gentry_t *const ga_dst = mem_get_gentry(g_dst);
-    mem_check_last_byte(ga_src, g_src_offset + nbytes);
-    mem_check_last_byte(ga_dst, g_dst_offset + nbytes);
+    gentry_t * const ga_src = mem_get_gentry(g_src);
+    gentry_t * const ga_dst = mem_get_gentry(g_dst);
+
+    uint64_t src_bytes_per_elem = ga_src->nbytes_elem;
+    uint64_t dst_bytes_per_elem = ga_dst->nbytes_elem;
+    mem_check_last_byte(ga_src, (g_src_offset + num_elems) * src_bytes_per_elem);
+    mem_check_last_byte(ga_dst, (g_dst_offset + num_elems) * dst_bytes_per_elem);
 
     /* prepare space for argument of possible remote execution */
-    memcpy_func_args_t *args =
-        (memcpy_func_args_t *) _malloc((num_nodes - 1) *
-                                       sizeof(memcpy_func_args_t));
+    memcpy_func_args_t *args = (memcpy_func_args_t *) _malloc((num_nodes - 1) * sizeof(memcpy_func_args_t));
 
     //counter of remote executions
     uint32_t cnt = 0;
 
-
     while (g_src_offset_cur < g_src_offset_end) {
 
-        uint64_t nbytes_remaining = g_src_offset_end - g_src_offset_cur;
-        uint64_t avail_bytes = 0;
-        int64_t l_src_offset = 0;
+       uint64_t avail_elems = 0;
+       int64_t l_src_offset = 0;     // in bytes
+       uint64_t nelems_remaining = g_src_offset_end - g_src_offset_cur;
 
-        // if source is local, we can solve this with a non blocking put 
-        if (mem_gmt_data_is_local
-            (ga_src, g_src, g_src_offset_cur, &l_src_offset)) {
+       // if source is local, we can solve this with a non blocking put 
+       if (mem_gmt_data_is_local(ga_src, g_src, g_src_offset_cur * src_bytes_per_elem, &l_src_offset)) {
 
-            avail_bytes =
-                MIN(nbytes_remaining, ga_src->nbytes_loc - l_src_offset);
-            gmt_put_nb(g_dst, g_dst_offset_cur, &ga_src->data[l_src_offset],
-                       avail_bytes);
+          avail_elems = MIN(nelems_remaining, (ga_src->nbytes_loc - l_src_offset) / src_bytes_per_elem);
+          gmt_put_nb(g_dst, g_dst_offset_cur, &ga_src->data[l_src_offset], avail_elems);
 
-            // if destination is local, we can solve this with a non blocking get 
-        } else
-            if (mem_gmt_data_is_local
-                (ga_dst, g_dst, g_dst_offset_cur, &l_src_offset)) {
-            avail_bytes =
-                MIN(nbytes_remaining, ga_dst->nbytes_loc - l_src_offset);
-            gmt_get_nb(g_src, g_src_offset_cur, &ga_dst->data[l_src_offset],
-                       avail_bytes);
+       // if destination is local, we can solve this with a non blocking get 
+       } else if (mem_gmt_data_is_local(ga_dst, g_dst, g_dst_offset_cur * dst_bytes_per_elem, &l_src_offset)) {
 
-            // destination and source are both remote, we locate the node where 
-            // the source is and we perform a remote memcpy_func on it
-        } else {
-            uint32_t rnode_id = 0;
-            uint64_t roffset_bytes = 0;
-            mem_locate_gmt_data_remote(ga_src, g_src_offset_cur,
-                                       &rnode_id, &roffset_bytes);
-            if (ga_src != NULL)
-                avail_bytes =
-                    MIN(nbytes_remaining, ga_src->nbytes_block - roffset_bytes);
-            else
-                avail_bytes = nbytes_remaining;
+          avail_elems = MIN(nelems_remaining, (ga_dst->nbytes_loc - l_src_offset) / dst_bytes_per_elem);
+          gmt_get_nb(g_src, g_src_offset_cur, &ga_dst->data[l_src_offset], avail_elems);
 
-            _assert(cnt < num_nodes - 1);
-            args[cnt].g_src = g_src;
-            args[cnt].g_dst = g_dst;
-            args[cnt].g_src_offset = g_src_offset_cur;
-            args[cnt].g_dst_offset = g_dst_offset_cur;
-            args[cnt].nbytes = avail_bytes;
-            gmt_execute_on_node_nb(rnode_id, (gmt_execute_func_t) _memcpy_func,
-                                   &args[cnt], sizeof(memcpy_func_args_t),
-                                   NULL, NULL, GMT_PREEMPTABLE);
-            cnt++;
+       // destination and source are both remote, we locate the node where 
+       // the source is and we perform a remote memcpy_func on it
+       } else {
+          uint32_t rnode_id      = 0;
+          uint64_t roffset_bytes = 0;
+          mem_locate_gmt_data_remote(ga_src, g_src_offset_cur * src_bytes_per_elem, &rnode_id, &roffset_bytes);
 
-        }
-        g_src_offset_cur += avail_bytes;
-        g_dst_offset_cur += avail_bytes;
+          avail_elems = (ga_src == NULL) ?
+          nelems_remaining :
+          MIN(nelems_remaining, (ga_src->nbytes_block - roffset_bytes) / src_bytes_per_elem);
+
+          _assert(cnt < num_nodes - 1);
+          args[cnt].g_src = g_src;
+          args[cnt].g_dst = g_dst;
+          args[cnt].g_src_offset = g_src_offset_cur;
+          args[cnt].g_dst_offset = g_dst_offset_cur;
+          args[cnt].nelems = avail_elems;
+          gmt_execute_on_node_nb(rnode_id, (gmt_execute_func_t) _memcpy_func,
+               &args[cnt], sizeof(memcpy_func_args_t), NULL, NULL, GMT_PREEMPTABLE);
+          cnt++;
+       }
+
+       g_src_offset_cur += avail_elems;
+       g_dst_offset_cur += avail_elems;
     }
-    gmt_wait_data();
-    gmt_wait_execute_nb();
 
     //free space used by arguments of possible remote executions 
-    free(args);
+    // free(args);
 }

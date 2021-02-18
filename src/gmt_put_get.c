@@ -63,6 +63,7 @@
     gmt_put_value 
     gmt_get 
     gmt_get_bytes
+    gmt_get_values
     
     gnt_gather_nb
     gnt_scatter_nb
@@ -1083,17 +1084,17 @@ GMT_INLINE void gmt_get(gmt_data_t gmt_array, uint64_t goffset_bytes,
 }
 
 GMT_INLINE void gmt_get_bytes(gmt_data_t array, uint64_t index,
-     void * data, uint64_t num_elems, uint64_t byte_offset, uint64_t num_bytes) {
-
+     void * data, uint64_t num_elems, uint64_t byte_offset, uint64_t num_bytes)
+{
   gmt_get_bytes_nb(array, index, data, num_elems, byte_offset, num_bytes);
   gmt_wait_data();
 }
 
-GMT_INLINE void gmt_put_value(gmt_data_t gmt_array, uint64_t goffset_bytes,
-                   uint64_t value)
+GMT_INLINE uint64_t gmt_get_value(gmt_data_t gmt_array, uint64_t goffset_bytes)
 {
-    gmt_put_value_nb(gmt_array, goffset_bytes, value);
-    gmt_wait_data();
+    uint64_t value;
+    gmt_get(gmt_array, goffset_bytes, (void *) & value, 1);
+    return value;
 }
 
 GMT_INLINE void gmt_put(gmt_data_t gmt_array, uint64_t goffset_bytes,
@@ -1110,11 +1111,19 @@ GMT_INLINE void gmt_put_bytes(gmt_data_t array, uint64_t index,
   gmt_wait_data();
 }
 
-void gmt_gather(gmt_data_t array, uint64_t * index, void * data, uint64_t num_elems) {
+GMT_INLINE void gmt_put_value(gmt_data_t gmt_array, uint64_t goffset_bytes,
+                   uint64_t value)
+{
+    gmt_put_value_nb(gmt_array, goffset_bytes, value);
+    gmt_wait_data();
+}
+
+void gmt_gather(gmt_data_t array, uint64_t * index, void * data, uint64_t num_elems)
+{
   gmt_gather_nb(array, index, data, num_elems);
   gmt_wait_data();
 }
-//
+
 // merge index and data into single stream of {index, data} pairs, and then call gmt_scatter_nb
 void gmt_scatter(gmt_data_t array, uint64_t * index, void * data, uint64_t num_elems) {
   gentry_t * ga = mem_get_gentry(array);
@@ -1187,7 +1196,7 @@ GMT_INLINE int64_t gmt_atomic_max(gmt_data_t gmt_array, uint64_t elem_offset, in
     return ret_value;
 }
 
-GMT_INLINE int64_t gmt_atomic_min(gmt_data_t gmt_array, uint64_t elem_offset, int64_t value)
+GMT_INLINE int64_t gmt_atomic_min(gmt_data_t gmt_array, uint64_t elem_offset, int64_t value, uint64_t byte_offsets = 0)
 {
     int64_t ret_value;
     gmt_atomic_min_nb(gmt_array, elem_offset, value, &ret_value);
