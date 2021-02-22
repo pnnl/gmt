@@ -110,12 +110,20 @@ void merge_block(uint64_t it, uint64_t num_iter, const void * args, gmt_handle_t
   uint64_t num_workers = gmt_num_nodes() * gmt_num_workers();
 
   gentry_t * ga = mem_get_gentry(data);
+  uint64_t my_task, my_task_worker_id;
   uint64_t tew = num_workers % num_tasks;             // number of tasks with extra worker
   uint64_t wpt = CEILING(num_workers, num_tasks);     // workers per task
 
-  if ((tew != 0) && (it >= wpt * tew)) wpt --;
-  uint64_t my_task = it / wpt;
-  uint64_t my_task_worker_id = it % wpt;
+  if ((tew == 0) || (it < wpt * tew)) {
+     my_task = it / wpt;
+     my_task_worker_id = it % wpt;
+  } else {
+     it -= wpt * tew;
+     wpt --;
+
+     my_task = tew + it / wpt;
+     my_task_worker_id = it % wpt;
+  }
 
   uint64_t start = my_task * block_size;
   uint64_t mid   = start + (block_size >> 1);

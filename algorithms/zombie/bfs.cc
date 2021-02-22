@@ -1,54 +1,61 @@
 #include "main.h"
 
-typedef struct MBG_args_t {
-  Table edges;
-  Table vertices;
-} MBG_args_t;
+std::map <uint64_t, std::pair <uint64_t, uint64_t> > localServer;
+
+typedef struct {
+  uint64_t id;
+  uint64_t num_hops;
+  gmt_data_t size_1;
+  gmt_data_t servers;
+  gmt_data_t horizon_1;
+  uint64_t hops_offset;
+  gmt_data_t reverseEdges;
+} bfs_args_t;
 
 
-void MarkBadGuys(gmt_data_t bad_guys, uint64_t i, uint64_t num_elem, const void * args, gmt_handle_t handle) {
-  MBG_args_t * my_args = (MBG_args_t *) args;
+void localServers(const void * args, uint32_t args_size, void * ret, uint32_t * ret_size, gmt_handle_t handle) {
+  bfs_args_t * my_args = (bfs_args_t *) args;
+  gentry_t * ga = mem_get_gentry(my_args->servers);
+  uint64_t num_rows = gmt_nelems_tot(my_args->servers);
+  uint64_t num_cols = ga->nbytes_elem / sizeof(uint64_t);
+  uint64_t hops_column = my_args->hops_offset / sizeof(uint64_t);
 
-  uint64_t root;
-  std::set <uint64_t> visited;
-  std::vector < std::vector <uint64_t> > horizons(MAX_HORIZONS);
+  std::vector <uint64_t> buffer(num_rows * num_cols);
+  gmt_get(my_args->servers, 0, (void *) buffer.data(), num_rows);
 
-  uint64_t hopsCol = findColumn("hops", my_args->vertices.schema);
-  std::vector <uint64_t> edgeRow(my_args->edges.num_cols, ULLONG_MAX);
-  std::vector <uint64_t> vertexRow(my_args->vertices.num_cols, ULLONG_MAX);
+  for (uint64_t i = 0; i < num_rows; i ++) {
+    uint64_t * row = & buffer[i * num_cols];
+    localServer[row[0]] = std::make_pair(i, row[hops_column]);
+} }
 
-  gmt_get(bad_guys, i, (void *) & root, 1);
-  horizons[0].push_back(root);
-  visited.insert(root);
 
-  for (uint64_t h = 0; h < MAX_HORIZONS; h ++) {
-    if (horizons[h].size() == 0) break;                              // dead end
+void BFS(const void * args, uint32_t args_size, void * ret, uint32_t * ret_size, gmt_handle_t handle) {
+  bfs_args_t * my_args = (bfs_args_t *) args;
+  gmt_data_t edges = my_args->reverseEdges;
+  std::vector <uint64_t> edgeRow = {0, my_args->id};
+  std::pair <uint64_t, uint64_t> edgeRange = gmt_equal_range(edgeRow, edges, __cols1);
 
-    for (uint64_t v : horizons[h]) {                                 // for each vertex in the horizon
-      edgeRow[1] = v;
-      uint64_t last_dst = ULLONG_MAX;
-      std::pair <uint64_t, uint64_t> edgeRange = gmt_equal_range(edgeRow, my_args->edges.data, __cols1);
+  uint64_t num_neighbors = edgeRange.second - edgeRange.first;
+  if (num_neighbors == 0) return;
 
-      uint64_t num_rows = edgeRange.second - edgeRange.first;
-      if (num_rows == 0) continue;
+  std::vector <uint64_t> my_horizon;
+  std::vector <uint64_t> neighbors(num_neighbors);
+  gmt_get_bytes(edges, edgeRange.first, (void *) neighbors.data(), num_neighbors, 0, sizeof(uint64_t));
 
-      std::vector <uint64_t> edgeBuffer(num_rows * my_args->edges.num_cols);
-      gmt_get(my_args->edges.data, edgeRange.first, (void *) edgeBuffer.data(), num_rows);
+  for (uint64_t neighbor : neighbors) {                     // for each neighbor of v
+    uint64_t ndx = localServer[neighbor].first;
+    if (localServer[neighbor].second != MAX_HORIZONS) continue;
 
-      for (uint64_t j = 0; j < num_rows; j ++) {                     // for each edge of v
-        uint64_t dst = edgeBuffer[j * my_args->edges.num_cols];
-        if (dst == last_dst) continue; else last_dst = dst;          // skip edges to same dst
+    localServer[neighbor].second = my_args->num_hops;
+    uint64_t hops = gmt_atomic_min(my_args->servers, ndx, (int64_t) my_args->num_hops, my_args->hops_offset);
 
-        if (visited.insert(dst).second) {                            // neighbor is unvisited
-           vertexRow[0] = dst;
-           uint64_t ndx = gmt_lower_bound(vertexRow, my_args->vertices.data, __cols0);
-           gmt_get(my_args->vertices.data, ndx, (void *) vertexRow.data(), 1);
+    if (hops == MAX_HORIZONS) my_horizon.push_back(neighbor);
+  }
 
-           if ((h + 1) < vertexRow[hopsCol]) {                              // found a shorter path to a bad guy
-              vertexRow[hopsCol] = h + 1;                                   // ... update hops !!! FIX RACE CONDITION
-              gmt_put(my_args->vertices.data, ndx, (void *) vertexRow.data(), 1);
-              if (h < MAX_HORIZONS - 1) horizons[h + 1].push_back(dst);     // ... and keep going
-} } } } } }
+  if (my_horizon.size() > 0) {
+     uint64_t start = gmt_atomic_add(my_args->size_1, 0, (int64_t) my_horizon.size());
+     gmt_put(my_args->horizon_1, start, (void *) my_horizon.data(), my_horizon.size());
+} } 
 
 
 /********** Breadth First Searches **********/
@@ -57,6 +64,7 @@ void BFS_Setup(Graph_t & graph) {
   Table Netflow = * graph["Netflow"];
   Table Servers = * graph["Servers"];
 
+// reverse edges
   Table Reverse;
   Reverse.schema   = Netflow.schema;
   Reverse.num_cols = Netflow.num_cols;
@@ -66,30 +74,65 @@ void BFS_Setup(Graph_t & graph) {
   gmt_memcpy(Netflow.data, 0, Reverse.data, 0, Reverse.num_rows);
   sortTable(& Reverse, __cols10);
 
-// initialize bad guys for BFS
-  std::set <uint64_t> bad_guys_set;
-  std::vector <uint64_t > row(Servers.num_cols);
-  uint64_t hopsCol = findColumn("hops", Servers.schema);
-  gmt_data_t bad_guys = gmt_alloc(NUM_BAD_GUYS, sizeof(uint64_t), GMT_ALLOC_PARTITION_FROM_ZERO, "bad_guys");
+// initialize hops column
+  gmt_data_t servers = Servers.data;
+  uint64_t num_servers = Servers.num_rows;
 
-  while (bad_guys_set.size() < NUM_BAD_GUYS) {
-    uint64_t ndx = drand48() * Servers.num_rows;
-    gmt_get(Servers.data, ndx, (void *) row.data(), 1);
-    if (bad_guys_set.insert(row[0]).second == false) continue;     // if server already choosen, continue
+  std::vector <uint64_t> initValues(num_servers, MAX_HORIZONS);
+  uint64_t hops_offset = findColumn("hops", Servers.schema) * sizeof(uint64_t);
+  gmt_put_bytes(servers, 0, (void *) initValues.data(), num_servers, hops_offset, sizeof(uint64_t));
 
-    row[hopsCol] = 0;
-    gmt_put(Servers.data, ndx, (void *) row.data(), 1);
-    gmt_put(bad_guys, bad_guys_set.size() - 1, (void *) row.data(), 1);
+// identify bad guys and set up initial horizon
+  std::set<uint64_t> bad_guys;
+  gmt_data_t size_0 = gmt_alloc(1, sizeof(uint64_t), GMT_ALLOC_LOCAL, "size 0");
+  gmt_data_t size_1 = gmt_alloc(1, sizeof(uint64_t), GMT_ALLOC_LOCAL, "size 1");
+  gmt_data_t horizon_0 = gmt_alloc(num_servers, sizeof(uint64_t), GMT_ALLOC_PARTITION_FROM_ZERO, "horizon_0");
+  gmt_data_t horizon_1 = gmt_alloc(num_servers, sizeof(uint64_t), GMT_ALLOC_PARTITION_FROM_ZERO, "horizon_1");
+
+  uint64_t zero = 0;
+  uint64_t * s0 = (uint64_t *) mem_get_gentry(size_0)->data;
+  uint64_t * s1 = (uint64_t *) mem_get_gentry(size_1)->data;
+
+  * s0 = 0;
+  * s1 = 0;
+
+// identify bad guys: 1) mark visited, 2) place on horizon, 3) set hops to zero
+  while (* s0 < NUM_BAD_GUYS) {
+    uint64_t ndx = drand48() * num_servers;
+    uint64_t id = gmt_get_value(servers, ndx);
+    if (bad_guys.insert(id).second == false) continue;
+
+    gmt_put_value(horizon_0, * s0, id);
+    gmt_put_bytes(servers, ndx, (void *) & zero, 1, hops_offset, sizeof(uint64_t));
+    (* s0) ++;
   }
 
-  MBG_args_t args;
-  args.edges = Reverse;
-  args.vertices = Servers;
+  bfs_args_t args;
+  args.num_hops = 0;
+  args.size_1 = size_1;
+  args.servers = servers;
+  args.horizon_1 = horizon_1;
+  args.hops_offset = hops_offset;
+  args.reverseEdges = Reverse.data;
 
-// find vertices that reach a bad guy in at most max hops
-  gmt_for_each(bad_guys, 1, 0, NUM_BAD_GUYS, MarkBadGuys, & args, sizeof(MBG_args_t));
+// initialize a local server map on each processor for speed
+  gmt_execute_on_all(localServers, & args, sizeof(bfs_args_t), GMT_PREEMPTABLE);
 
-  gmt_free(bad_guys);
-  gmt_free(Reverse.data);
+// while less than exceeded maximun number of horizons AND horizon 0 is not empty
+  while ((args.num_hops < MAX_HORIZONS) && (* s0 > 0)) {
+    args.num_hops ++;
+
+    for (uint64_t i = 0; i < * s0; i ++) {           // for each vertex on horizon 0
+      args.id = gmt_get_value(horizon_0, i);
+      uint64_t ndx = localServer[args.id].first;     // ... execute BFS on its home processor
+      gmt_execute_on_data_nb(servers, ndx, BFS, & args, sizeof(bfs_args_t), NULL, NULL, GMT_PREEMPTABLE);
+    }
+
+    gmt_wait_execute_nb();
+    std::swap(horizon_0, horizon_1);
+    * s0 = * s1;
+    * s1 = 0;
+  }
+
   printf("Time to set up BFS = %lf\n", my_timer() - time1);
 }

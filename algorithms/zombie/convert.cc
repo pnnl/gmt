@@ -41,20 +41,22 @@ std::string Uint_to_IP(uint64_t value) {
 
 uint64_t String_to_Uint(std::string & field, SchemaType type) {
   uint64_t value = ULONG_MAX;
-  if ((field == "") | (field == " ") | (field == "-") | (field == "(empty)")) return value;
 
-  if (type == STRING) {
-     std::string * str = new std::string;
-     * str = field;
-     value = (uint64_t) str;
+  if (field == " ") {
+     return value;
+
+  } else if (type == UINT) {
+     try {value = stoull(field);}
+     catch(...) {value = 0;}
 
   } else if (type == CHARS) {
      memset(& value, '\0', sizeof(value));
      memcpy(& value, field.c_str(), 7);     // last char must be end-of-word
 
-  } else if (type == UINT) {
-     try {value = stoull(field);}
-     catch(...) {value = 0;}
+  } else if (type == STRING) {
+     std::string * str = new std::string;
+     * str = field;
+     value = (uint64_t) str;
 
   } else if (type == INT) {
      int64_t this_value;

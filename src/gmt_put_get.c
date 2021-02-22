@@ -63,7 +63,7 @@
     gmt_put_value 
     gmt_get 
     gmt_get_bytes
-    gmt_get_values
+    gmt_get_value
     
     gnt_gather_nb
     gnt_scatter_nb
@@ -662,7 +662,7 @@ void gmt_scatter_nb(gmt_data_t array, uint64_t * stream, uint64_t num_elems) {
 INLINE void _atomic_add_remote(uint32_t tid, uint32_t wid,
                                uint32_t rnid, gmt_data_t gmt_array,
                                uint64_t roffset_bytes, uint64_t value,
-                               int64_t * ret_value_ptr)
+                               int64_t * ret_value_ptr, uint64_t byte_offset)
 {
     cmd_atomic_add_t *cmd;
     cmd = (cmd_atomic_add_t *) agm_get_cmd(rnid, wid,
@@ -670,6 +670,7 @@ INLINE void _atomic_add_remote(uint32_t tid, uint32_t wid,
 
     cmd->gmt_array = gmt_array;
     cmd->offset = roffset_bytes;
+    cmd->byte_offset = byte_offset;
     _assert( (uint64_t) ret_value_ptr >> VIRT_ADDR_PTR_BITS == 0);
     cmd->ret_value_ptr = (uint64_t) ret_value_ptr;
     cmd->tid = tid;
@@ -683,13 +684,14 @@ INLINE void _atomic_add_remote(uint32_t tid, uint32_t wid,
 INLINE void _atomic_double_add_remote(uint32_t tid, uint32_t wid,
                                      uint32_t rnid, gmt_data_t gmt_array,
                                      uint64_t roffset_bytes, double value,
-                                     double * ret_value_ptr)
+                                     double * ret_value_ptr, uint64_t byte_offset)
 {
     cmd_atomic_double_t *cmd;
     cmd = (cmd_atomic_double_t *) agm_get_cmd(rnid, wid, sizeof(cmd_atomic_double_t), 0, NULL);
 
     cmd->gmt_array = gmt_array;
     cmd->offset = roffset_bytes;
+    cmd->byte_offset = byte_offset;
     _assert( (uint64_t) ret_value_ptr >> VIRT_ADDR_PTR_BITS == 0);
     cmd->ret_value_ptr = (uint64_t) ret_value_ptr;
     cmd->tid = tid;
@@ -700,17 +702,16 @@ INLINE void _atomic_double_add_remote(uint32_t tid, uint32_t wid,
     agm_set_cmd_data(rnid, wid, NULL, 0);
 }
 
-INLINE void _atomic_double_max_remote(uint32_t tid, uint32_t wid,
-                                     uint32_t rnid, gmt_data_t gmt_array,
-                                     uint64_t roffset_bytes, uint64_t field_offset,
-                                     double value, double * ret_value_ptr)
+INLINE void _atomic_double_max_remote(uint32_t tid, uint32_t wid, uint32_t rnid,
+                                     gmt_data_t gmt_array, uint64_t roffset_bytes,
+                                     double value, double * ret_value_ptr, uint64_t byte_offset)
 {
     cmd_atomic_double_t *cmd;
     cmd = (cmd_atomic_double_t *) agm_get_cmd(rnid, wid, sizeof(cmd_atomic_double_t), 0, NULL);
 
     cmd->gmt_array = gmt_array;
     cmd->offset = roffset_bytes;
-    cmd->field_offset = field_offset;
+    cmd->byte_offset = byte_offset;
     _assert( (uint64_t) ret_value_ptr >> VIRT_ADDR_PTR_BITS == 0);
     cmd->ret_value_ptr = (uint64_t) ret_value_ptr;
     cmd->tid = tid;
@@ -724,13 +725,14 @@ INLINE void _atomic_double_max_remote(uint32_t tid, uint32_t wid,
 INLINE void _atomic_double_min_remote(uint32_t tid, uint32_t wid,
                                      uint32_t rnid, gmt_data_t gmt_array,
                                      uint64_t roffset_bytes, double value,
-                                     double * ret_value_ptr)
+                                     double * ret_value_ptr, uint64_t byte_offset)
 {
     cmd_atomic_double_t *cmd;
     cmd = (cmd_atomic_double_t *) agm_get_cmd(rnid, wid, sizeof(cmd_atomic_double_t), 0, NULL);
 
     cmd->gmt_array = gmt_array;
     cmd->offset = roffset_bytes;
+    cmd->byte_offset = byte_offset;
     _assert( (uint64_t) ret_value_ptr >> VIRT_ADDR_PTR_BITS == 0);
     cmd->ret_value_ptr = (uint64_t) ret_value_ptr;
     cmd->tid = tid;
@@ -744,13 +746,13 @@ INLINE void _atomic_double_min_remote(uint32_t tid, uint32_t wid,
 INLINE void _atomic_max_remote(uint32_t tid, uint32_t wid,
                                uint32_t rnid, gmt_data_t gmt_array,
                                uint64_t roffset_bytes, int64_t value,
-                               int64_t * ret_value_ptr)
+                               int64_t * ret_value_ptr, uint64_t byte_offset)
 {
     cmd_atomic_int_t *cmd;
     cmd = (cmd_atomic_int_t *) agm_get_cmd(rnid, wid, sizeof(cmd_atomic_int_t), 0, NULL);
 
     cmd->gmt_array = gmt_array;
-    cmd->offset = roffset_bytes;
+    cmd->byte_offset = byte_offset;
     _assert( (uint64_t) ret_value_ptr >> VIRT_ADDR_PTR_BITS == 0);
     cmd->ret_value_ptr = (uint64_t) ret_value_ptr;
     cmd->tid = tid;
@@ -764,13 +766,14 @@ INLINE void _atomic_max_remote(uint32_t tid, uint32_t wid,
 INLINE void _atomic_min_remote(uint32_t tid, uint32_t wid,
                                uint32_t rnid, gmt_data_t gmt_array,
                                uint64_t roffset_bytes, int64_t value,
-                               int64_t * ret_value_ptr)
+                               int64_t * ret_value_ptr, uint64_t byte_offset)
 {
     cmd_atomic_int_t *cmd;
     cmd = (cmd_atomic_int_t *) agm_get_cmd(rnid, wid, sizeof(cmd_atomic_int_t), 0, NULL);
 
     cmd->gmt_array = gmt_array;
     cmd->offset = roffset_bytes;
+    cmd->byte_offset = byte_offset;
     _assert( (uint64_t) ret_value_ptr >> VIRT_ADDR_PTR_BITS == 0);
     cmd->ret_value_ptr = (uint64_t) ret_value_ptr;
     cmd->tid = tid;
@@ -782,21 +785,20 @@ INLINE void _atomic_min_remote(uint32_t tid, uint32_t wid,
 }
 
 GMT_INLINE void gmt_atomic_add_nb(gmt_data_t gmt_array, uint64_t elem_offset,
-                       int64_t value, int64_t * ret_value_ptr)
+                       int64_t value, int64_t * ret_value_ptr, uint64_t byte_offset)
 {
     if (GD_GET_TYPE_DISTR(gmt_array) == GMT_ALLOC_REPLICATE)
         ERRORMSG("DATA ALLOCATED WITH GMT_ALLOC_REPLICATE OPERATION NOT VALID");
 
     int64_t loffset;
     gentry_t *const ga = mem_get_gentry(gmt_array);
-    mem_check_word_elem_size(ga);
     uint64_t size = ga->nbytes_elem;
     uint64_t goffset_bytes = elem_offset * size;
     mem_check_last_byte(ga, goffset_bytes + size);
     if (mem_gmt_data_is_local(ga, gmt_array, goffset_bytes, &loffset)) {
         COUNT_EVENT(WORKER_GMT_ATOMIC_ADD_LOCAL);
         uint8_t *ptr = mem_get_loc_ptr(ga, loffset, size);
-        int64_t ret = mem_atomic_add(ptr, value, size);
+        int64_t ret = mem_atomic_add(ptr + byte_offset, value, size);
         if (ret_value_ptr != NULL)
             *ret_value_ptr = ret;
     } else {
@@ -806,27 +808,26 @@ GMT_INLINE void gmt_atomic_add_nb(gmt_data_t gmt_array, uint64_t elem_offset,
         uint32_t wid = uthread_get_wid(tid);
         mem_locate_gmt_data_remote(ga, goffset_bytes, &rnid, &roffset_bytes);
         _atomic_add_remote(tid, wid, rnid, gmt_array, roffset_bytes, value,
-                           ret_value_ptr);
+                           ret_value_ptr, byte_offset);
         COUNT_EVENT(WORKER_GMT_ATOMIC_ADD_REMOTE);
     }
 }
 
 
 GMT_INLINE void gmt_atomic_double_add_nb(gmt_data_t gmt_array, uint64_t elem_offset,
-                       double value, double * ret_value_ptr)
+                       double value, double * ret_value_ptr, uint64_t byte_offset)
 {
     if (GD_GET_TYPE_DISTR(gmt_array) == GMT_ALLOC_REPLICATE)
         ERRORMSG("DATA ALLOCATED WITH GMT_ALLOC_REPLICATE OPERATION NOT VALID");
 
     int64_t loffset;
     gentry_t *const ga = mem_get_gentry(gmt_array);
-    mem_check_word_elem_size(ga);
     uint64_t size = ga->nbytes_elem;
     uint64_t goffset_bytes = elem_offset * size;
     mem_check_last_byte(ga, goffset_bytes + size);
     if (mem_gmt_data_is_local(ga, gmt_array, goffset_bytes, &loffset)) {
         COUNT_EVENT(WORKER_GMT_ATOMIC_ADD_LOCAL);
-        int64_t * ptr = (int64_t *) mem_get_loc_ptr(ga, loffset, size);
+        int64_t * ptr = (int64_t *) (mem_get_loc_ptr(ga, loffset, size) + byte_offset);
         double old_value;
 
         while (true) {
@@ -845,29 +846,25 @@ GMT_INLINE void gmt_atomic_double_add_nb(gmt_data_t gmt_array, uint64_t elem_off
         uint32_t tid = uthread_get_tid();
         uint32_t wid = uthread_get_wid(tid);
         mem_locate_gmt_data_remote(ga, goffset_bytes, &rnid, &roffset_bytes);
-        _atomic_double_add_remote(tid, wid, rnid, gmt_array, roffset_bytes, value, ret_value_ptr);
+        _atomic_double_add_remote(tid, wid, rnid, gmt_array, roffset_bytes, value, ret_value_ptr, byte_offset);
         COUNT_EVENT(WORKER_GMT_ATOMIC_ADD_REMOTE);
     }
 }
 
 GMT_INLINE void gmt_atomic_double_max_nb(gmt_data_t gmt_array, uint64_t elem_offset,
-                       double value, double * ret_value_ptr)
+                       double value, double * ret_value_ptr, uint64_t byte_offset)
 {
     if (GD_GET_TYPE_DISTR(gmt_array) == GMT_ALLOC_REPLICATE)
         ERRORMSG("DATA ALLOCATED WITH GMT_ALLOC_REPLICATE OPERATION NOT VALID");
 
-    uint64_t field_offset = elem_offset >> 56;
-    elem_offset = elem_offset & 0x0fffffff;
-
     int64_t loffset;
     gentry_t *const ga = mem_get_gentry(gmt_array);
-    // mem_check_word_elem_size(ga);
     uint64_t size = ga->nbytes_elem;
     uint64_t goffset_bytes = elem_offset * size;
     mem_check_last_byte(ga, goffset_bytes + size);
     if (mem_gmt_data_is_local(ga, gmt_array, goffset_bytes, &loffset)) {
         COUNT_EVENT(WORKER_GMT_ATOMIC_MAX_LOCAL);
-        int64_t * ptr = ((int64_t *) mem_get_loc_ptr(ga, loffset, size)) + field_offset;
+        int64_t * ptr = (int64_t *) (mem_get_loc_ptr(ga, loffset, size) + byte_offset);
         double old_value;
 
         while (true) {
@@ -886,26 +883,25 @@ GMT_INLINE void gmt_atomic_double_max_nb(gmt_data_t gmt_array, uint64_t elem_off
         uint32_t tid = uthread_get_tid();
         uint32_t wid = uthread_get_wid(tid);
         mem_locate_gmt_data_remote(ga, goffset_bytes, &rnid, &roffset_bytes);
-        _atomic_double_max_remote(tid, wid, rnid, gmt_array, roffset_bytes, field_offset, value, ret_value_ptr);
+        _atomic_double_max_remote(tid, wid, rnid, gmt_array, roffset_bytes, value, ret_value_ptr, byte_offset);
         COUNT_EVENT(WORKER_GMT_ATOMIC_MAX_REMOTE);
     }
 }
 
 GMT_INLINE void gmt_atomic_double_min_nb(gmt_data_t gmt_array, uint64_t elem_offset,
-                       double value, double * ret_value_ptr)
+                       double value, double * ret_value_ptr, uint64_t byte_offset)
 {
     if (GD_GET_TYPE_DISTR(gmt_array) == GMT_ALLOC_REPLICATE)
         ERRORMSG("DATA ALLOCATED WITH GMT_ALLOC_REPLICATE OPERATION NOT VALID");
 
     int64_t loffset;
     gentry_t *const ga = mem_get_gentry(gmt_array);
-    mem_check_word_elem_size(ga);
     uint64_t size = ga->nbytes_elem;
     uint64_t goffset_bytes = elem_offset * size;
     mem_check_last_byte(ga, goffset_bytes + size);
     if (mem_gmt_data_is_local(ga, gmt_array, goffset_bytes, &loffset)) {
         COUNT_EVENT(WORKER_GMT_ATOMIC_MIN_LOCAL);
-        int64_t * ptr = (int64_t *) mem_get_loc_ptr(ga, loffset, size);
+        int64_t * ptr = (int64_t *) (mem_get_loc_ptr(ga, loffset, size) + byte_offset);
         double old_value;
 
         while (true) {
@@ -924,26 +920,25 @@ GMT_INLINE void gmt_atomic_double_min_nb(gmt_data_t gmt_array, uint64_t elem_off
         uint32_t tid = uthread_get_tid();
         uint32_t wid = uthread_get_wid(tid);
         mem_locate_gmt_data_remote(ga, goffset_bytes, &rnid, &roffset_bytes);
-        _atomic_double_min_remote(tid, wid, rnid, gmt_array, roffset_bytes, value, ret_value_ptr);
+        _atomic_double_min_remote(tid, wid, rnid, gmt_array, roffset_bytes, value, ret_value_ptr, byte_offset);
         COUNT_EVENT(WORKER_GMT_ATOMIC_MIN_REMOTE);
     }
 }
 
 GMT_INLINE void gmt_atomic_max_nb(gmt_data_t gmt_array, uint64_t elem_offset,
-                       int64_t value, int64_t * ret_value_ptr)
+                       int64_t value, int64_t * ret_value_ptr, uint64_t byte_offset)
 {
     if (GD_GET_TYPE_DISTR(gmt_array) == GMT_ALLOC_REPLICATE)
         ERRORMSG("DATA ALLOCATED WITH GMT_ALLOC_REPLICATE OPERATION NOT VALID");
 
     int64_t loffset;
     gentry_t *const ga = mem_get_gentry(gmt_array);
-    mem_check_word_elem_size(ga);
     uint64_t size = ga->nbytes_elem;
     uint64_t goffset_bytes = elem_offset * size;
     mem_check_last_byte(ga, goffset_bytes + size);
     if (mem_gmt_data_is_local(ga, gmt_array, goffset_bytes, &loffset)) {
         COUNT_EVENT(WORKER_GMT_ATOMIC_MAX_LOCAL);
-        int64_t * ptr = (int64_t *) mem_get_loc_ptr(ga, loffset, size);
+        int64_t * ptr = (int64_t *) (mem_get_loc_ptr(ga, loffset, size) + byte_offset);
         int64_t old_value;
 
         while (true) {
@@ -962,26 +957,25 @@ GMT_INLINE void gmt_atomic_max_nb(gmt_data_t gmt_array, uint64_t elem_offset,
         uint32_t tid = uthread_get_tid();
         uint32_t wid = uthread_get_wid(tid);
         mem_locate_gmt_data_remote(ga, goffset_bytes, &rnid, &roffset_bytes);
-        _atomic_max_remote(tid, wid, rnid, gmt_array, roffset_bytes, value, ret_value_ptr);
+        _atomic_max_remote(tid, wid, rnid, gmt_array, roffset_bytes, value, ret_value_ptr, byte_offset);
         COUNT_EVENT(WORKER_GMT_ATOMIC_MAX_REMOTE);
     }
 }
 
 GMT_INLINE void gmt_atomic_min_nb(gmt_data_t gmt_array, uint64_t elem_offset,
-                       int64_t value, int64_t * ret_value_ptr)
+                       int64_t value, int64_t * ret_value_ptr, uint64_t byte_offset)
 {
     if (GD_GET_TYPE_DISTR(gmt_array) == GMT_ALLOC_REPLICATE)
         ERRORMSG("DATA ALLOCATED WITH GMT_ALLOC_REPLICATE OPERATION NOT VALID");
 
     int64_t loffset;
     gentry_t *const ga = mem_get_gentry(gmt_array);
-    mem_check_word_elem_size(ga);
     uint64_t size = ga->nbytes_elem;
     uint64_t goffset_bytes = elem_offset * size;
     mem_check_last_byte(ga, goffset_bytes + size);
     if (mem_gmt_data_is_local(ga, gmt_array, goffset_bytes, &loffset)) {
         COUNT_EVENT(WORKER_GMT_ATOMIC_MIN_LOCAL);
-        int64_t * ptr = (int64_t *) mem_get_loc_ptr(ga, loffset, size);
+        int64_t * ptr = (int64_t *) (mem_get_loc_ptr(ga, loffset, size) + byte_offset);
         int64_t old_value;
 
         while (true) {
@@ -1000,7 +994,7 @@ GMT_INLINE void gmt_atomic_min_nb(gmt_data_t gmt_array, uint64_t elem_offset,
         uint32_t tid = uthread_get_tid();
         uint32_t wid = uthread_get_wid(tid);
         mem_locate_gmt_data_remote(ga, goffset_bytes, &rnid, &roffset_bytes);
-        _atomic_min_remote(tid, wid, rnid, gmt_array, roffset_bytes, value, ret_value_ptr);
+        _atomic_min_remote(tid, wid, rnid, gmt_array, roffset_bytes, value, ret_value_ptr, byte_offset);
         COUNT_EVENT(WORKER_GMT_ATOMIC_MIN_REMOTE);
     }
 }
@@ -1009,7 +1003,7 @@ INLINE void _atomic_cas_remote(uint32_t tid, uint32_t wid,
                                uint32_t rnid, gmt_data_t gmt_array,
                                uint64_t roffset_bytes,
                                uint64_t old_value, uint64_t new_value,
-                               int64_t * ret_value_ptr)
+                               int64_t * ret_value_ptr, uint64_t byte_offset)
 {
     cmd_atomic_cas_t *cmd;
     cmd = (cmd_atomic_cas_t *) agm_get_cmd(rnid, wid,
@@ -1017,6 +1011,7 @@ INLINE void _atomic_cas_remote(uint32_t tid, uint32_t wid,
 
     cmd->gmt_array = gmt_array;
     cmd->offset = roffset_bytes;
+    cmd->byte_offset = byte_offset;
     _assert((uint64_t)ret_value_ptr >> VIRT_ADDR_PTR_BITS == 0);
     cmd->ret_value_ptr = (uint64_t) ret_value_ptr;     
     cmd->tid = tid;
@@ -1030,7 +1025,7 @@ INLINE void _atomic_cas_remote(uint32_t tid, uint32_t wid,
 
 GMT_INLINE void gmt_atomic_cas_nb(gmt_data_t gmt_array, uint64_t elem_offset,
                        int64_t old_value, int64_t new_value,
-                       int64_t * ret_value_ptr)
+                       int64_t * ret_value_ptr, uint64_t byte_offset)
 {
     if (GD_GET_TYPE_DISTR(gmt_array) == GMT_ALLOC_REPLICATE)
         ERRORMSG("DATA ALLOCATED WITH GMT_ALLOC_REPLICATE"
@@ -1040,14 +1035,13 @@ GMT_INLINE void gmt_atomic_cas_nb(gmt_data_t gmt_array, uint64_t elem_offset,
     uint32_t wid = uthread_get_wid(tid);
 
     gentry_t *const ga = mem_get_gentry(gmt_array);
-    mem_check_word_elem_size(ga);
     uint64_t size = ga->nbytes_elem; 
     uint64_t goffset_bytes = size * elem_offset;
     mem_check_last_byte(ga, goffset_bytes + size);
 
     int64_t loffset;
     if (mem_gmt_data_is_local(ga, gmt_array, goffset_bytes, &loffset)) {
-        uint8_t *ptr = mem_get_loc_ptr(ga, loffset, size);
+        uint8_t * ptr = mem_get_loc_ptr(ga, loffset, size) + byte_offset;
         int64_t ret = mem_atomic_cas(ptr, old_value, new_value, size);
         if (ret_value_ptr != NULL)
             *ret_value_ptr = ret;
@@ -1064,7 +1058,7 @@ GMT_INLINE void gmt_atomic_cas_nb(gmt_data_t gmt_array, uint64_t elem_offset,
         mem_locate_gmt_data_remote(ga, goffset_bytes, &rnid,
                                    &roffset_bytes);
         _atomic_cas_remote(tid, wid, rnid, gmt_array, roffset_bytes, old_value,
-                           new_value, ret_value_ptr);
+                           new_value, ret_value_ptr, byte_offset);
         COUNT_EVENT(WORKER_GMT_ATOMIC_CAS_REMOTE);
     }
 }
@@ -1146,60 +1140,65 @@ void gmt_scatter(gmt_data_t array, uint64_t * index, void * data, uint64_t num_e
 }
 
 GMT_INLINE int64_t gmt_atomic_cas(gmt_data_t gmt_array, uint64_t elem_offset,
-                       int64_t old_value, int64_t new_value)
+                       int64_t old_value, int64_t new_value, uint64_t byte_offset)
 {
     int64_t ret_value;
     gmt_atomic_cas_nb(gmt_array, elem_offset,
-                      old_value, new_value, &ret_value);
+                      old_value, new_value, &ret_value, byte_offset);
     gmt_wait_data();
     return ret_value;
 }
 
 GMT_INLINE int64_t gmt_atomic_add(gmt_data_t gmt_array, uint64_t elem_offset,
-                       int64_t value)
+                       int64_t value, uint64_t byte_offset)
 {
     int64_t ret_value;
-    gmt_atomic_add_nb(gmt_array, elem_offset, value, &ret_value);
+    gmt_atomic_add_nb(gmt_array, elem_offset, value, &ret_value, byte_offset);
     gmt_wait_data();
     return ret_value;
 }
 
-GMT_INLINE double gmt_atomic_double_add(gmt_data_t gmt_array, uint64_t elem_offset, double value)
+GMT_INLINE double gmt_atomic_double_add(gmt_data_t gmt_array, uint64_t elem_offset,
+                      double value, uint64_t byte_offset)
 {
     double ret_value;
-    gmt_atomic_double_add_nb(gmt_array, elem_offset, value, &ret_value);
+    gmt_atomic_double_add_nb(gmt_array, elem_offset, value, &ret_value, byte_offset);
     gmt_wait_data();
     return ret_value;
 }
 
-GMT_INLINE double gmt_atomic_double_max(gmt_data_t gmt_array, uint64_t elem_offset, double value)
+GMT_INLINE double gmt_atomic_double_max(gmt_data_t gmt_array, uint64_t elem_offset,
+                      double value, uint64_t byte_offset)
 {
     double ret_value;
-    gmt_atomic_double_max_nb(gmt_array, elem_offset, value, &ret_value);
+    gmt_atomic_double_max_nb(gmt_array, elem_offset, value, &ret_value, byte_offset);
     gmt_wait_data();
     return ret_value;
 }
 
-GMT_INLINE double gmt_atomic_double_min(gmt_data_t gmt_array, uint64_t elem_offset, double value)
+GMT_INLINE double gmt_atomic_double_min(gmt_data_t gmt_array, uint64_t elem_offset,
+                      double value, uint64_t byte_offset)
 {
     double ret_value;
-    gmt_atomic_double_min_nb(gmt_array, elem_offset, value, &ret_value);
+    gmt_atomic_double_min_nb(gmt_array, elem_offset, value, &ret_value, byte_offset);
     gmt_wait_data();
     return ret_value;
 }
 
-GMT_INLINE int64_t gmt_atomic_max(gmt_data_t gmt_array, uint64_t elem_offset, int64_t value)
+GMT_INLINE int64_t gmt_atomic_max(gmt_data_t gmt_array, uint64_t elem_offset,
+                      int64_t value, uint64_t byte_offset)
 {
     int64_t ret_value;
-    gmt_atomic_max_nb(gmt_array, elem_offset, value, &ret_value);
+    gmt_atomic_max_nb(gmt_array, elem_offset, value, &ret_value, byte_offset);
     gmt_wait_data();
     return ret_value;
 }
 
-GMT_INLINE int64_t gmt_atomic_min(gmt_data_t gmt_array, uint64_t elem_offset, int64_t value, uint64_t byte_offsets = 0)
+GMT_INLINE int64_t gmt_atomic_min(gmt_data_t gmt_array, uint64_t elem_offset,
+                      int64_t value, uint64_t byte_offset)
 {
     int64_t ret_value;
-    gmt_atomic_min_nb(gmt_array, elem_offset, value, &ret_value);
+    gmt_atomic_min_nb(gmt_array, elem_offset, value, &ret_value, byte_offset);
     gmt_wait_data();
     return ret_value;
 }

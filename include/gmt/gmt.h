@@ -642,60 +642,60 @@ extern "C" {
     //@{
     /** 
      * Perform an atomic operation into an element of a GMT array 
-     * (similar to sync_fetch_and_add). Can only be used on arrays containing
-     * elements of 8,4,2 or 1 bytes.
+     * (similar to sync_fetch_and_add).
      * Non blocking '_nb' waits completion with ::gmt_wait_data()
      *
      * @param[in] gmt_array GMT array
      * @param[in] elem_offset offset in number of elements in the GMT array
      * @param[in] value value to add 
+     * @param[in] byte_offset offset in number of bytes from start of element
      *
      * @return value of the variable before the operation
      *
      * @ingroup GMT_module
      */
     int64_t gmt_atomic_add(gmt_data_t gmt_array, uint64_t elem_offset,
-                           int64_t value);
+                           int64_t value, uint64_t byte_offset = 0);
 
     void gmt_atomic_add_nb(gmt_data_t gmt_array, uint64_t elem_offset,
-                           int64_t value, int64_t * ret_value_ptr);
+                           int64_t value, int64_t * ret_value_ptr, uint64_t byte_offset = 0);
 
     double gmt_atomic_double_add(gmt_data_t gmt_array, uint64_t elem_offset,
-                           double value);
+                           double value, uint64_t byte_offset = 0);
 
     void gmt_atomic_double_add_nb(gmt_data_t gmt_array, uint64_t elem_offset,
-                           double value, double * ret_value_ptr);
+                           double value, double * ret_value_ptr, uint64_t byte_offset = 0);
 
     double gmt_atomic_double_max(gmt_data_t gmt_array, uint64_t elem_offset,
-                           double value);
+                           double value, uint64_t byte_offset = 0);
 
     void gmt_atomic_double_max_nb(gmt_data_t gmt_array, uint64_t elem_offset,
-                           double value, double * ret_value_ptr);
+                           double value, double * ret_value_ptr, uint64_t byte_offset = 0);
 
     double gmt_atomic_double_min(gmt_data_t gmt_array, uint64_t elem_offset,
-                           double value);
+                           double value, uint64_t byte_offset = 0);
 
     void gmt_atomic_double_min_nb(gmt_data_t gmt_array, uint64_t elem_offset,
-                           double value, double * ret_value_ptr);
+                           double value, double * ret_value_ptr, uint64_t byte_offset = 0);
 
     int64_t gmt_atomic_max(gmt_data_t gmt_array, uint64_t elem_offset,
-                           int64_t value);
+                           int64_t value, uint64_t byte_offset = 0);
 
     void gmt_atomic_max_nb(gmt_data_t gmt_array, uint64_t elem_offset,
-                           int64_t value, int64_t * ret_value_ptr);
+                           int64_t value, int64_t * ret_value_ptr, uint64_t byte_offset = 0);
 
     int64_t gmt_atomic_min(gmt_data_t gmt_array, uint64_t elem_offset,
-                           int64_t value);
+                           int64_t value, uint64_t byte_offset = 0);
 
     void gmt_atomic_min_nb(gmt_data_t gmt_array, uint64_t elem_offset,
-                           int64_t value, int64_t * ret_value_ptr);
+                           int64_t value, int64_t * ret_value_ptr, uint64_t byte_offset = 0);
 
     int64_t gmt_atomic_cas(gmt_data_t gmt_array, uint64_t elem_offset,
-                           int64_t old_value, int64_t new_value);
+                           int64_t old_value, int64_t new_value, uint64_t byte_offset = 0);
 
     void gmt_atomic_cas_nb(gmt_data_t gmt_array, uint64_t elem_offset,
                            int64_t old_value, int64_t new_value,
-                           int64_t * ret_value_ptr);
+                           int64_t * ret_value_ptr, uint64_t byte_offset = 0);
     //@{
 
     /**************************************************************************/

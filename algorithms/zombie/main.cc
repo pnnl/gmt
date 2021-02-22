@@ -1,6 +1,8 @@
 #include "main.h"
 #include <numeric>
 
+std::vector <std::vector <uint64_t> > globalVector;
+
 int gmt_main (uint64_t argc, char * argv[]) {
   if (argc != 7) {printf("Usage: <netfow file> <lb ub> <event file> <lb ub>\n"); return 1;}
 
@@ -45,8 +47,9 @@ int gmt_main (uint64_t argc, char * argv[]) {
   memcpy(netflowArgs.prefix, prefix.c_str(), prefix.size() + 1);
   memcpy(netflowArgs.columns, __cols01, SORT_COLS * sizeof(uint64_t));     // sort by src and dst
 
-  gmt_execute_on_node_nb(0, readTableFiles, & netflowArgs,
-      sizeof(RF_args_t), & netflowReturn, & netflowReturnSize, GMT_PREEMPTABLE);
+  gmt_handle_t handle = gmt_get_handle();
+  gmt_execute_on_node_with_handle(0, readTableFiles, & netflowArgs,
+      sizeof(RF_args_t), & netflowReturn, & netflowReturnSize, GMT_PREEMPTABLE, handle);
 
 /**********  READ EVENT FILES **********/
   RF_args_t eventArgs;
@@ -60,10 +63,12 @@ int gmt_main (uint64_t argc, char * argv[]) {
   memcpy(eventArgs.prefix, prefix.c_str(), prefix.size() + 1);
   memcpy(eventArgs.columns, __cols01, SORT_COLS * sizeof(uint64_t));     // sort by event id and log host
 
-  gmt_execute_on_node_nb(1, readTableFiles, & eventArgs,
-      sizeof(RF_args_t), & eventReturn, & eventReturnSize, GMT_PREEMPTABLE);
+  gmt_execute_on_node_with_handle(0, readTableFiles, & eventArgs,
+    sizeof(RF_args_t), & eventReturn, & eventReturnSize, GMT_PREEMPTABLE, handle);
 
-  gmt_wait_for_nb();      // wait for all reads to complete
+  gmt_wait_handle(handle);       // wait for all reads to complete
+  printf("Time to read files = %lf\n", my_timer() - time1);
+  time1 = my_timer();
 
 /**********  CONSTRUCT NETWORK EDGE TABLE **********/
   Table Netflow; 
@@ -79,14 +84,11 @@ int gmt_main (uint64_t argc, char * argv[]) {
   Events.num_rows = gmt_nelems_tot(Events.data);
   Events.num_cols = gmt_nelems_tot(eventTableSchema);
 
-  printf("Time to read files = %lf\n", my_timer() - time1);
-  time1 = my_timer();
-
 /**********  CREATE NETFLOW SERVER TABLE **********/
   std::string serverTableName = "Servers";
   gmt_data_t serverTableSchema = gmt_alloc(2, SCHEMA_ELEMS_BYTES, GMT_ALLOC_REPLICATE, "serverSchema");
-  assign_schema_pair("server", UINT,  0, serverTableSchema);
-  assign_schema_pair("hops",   UINT,  1, serverTableSchema);
+  assign_schema_pair("server", UINT, 0, serverTableSchema);
+  assign_schema_pair("hops",   INT,  1, serverTableSchema);
   Table Servers = uniqueTable(__cols01, serverTableSchema, Netflow, serverTableName);
 
   printf("Time to construct server table = %lf\n", my_timer() - time1);

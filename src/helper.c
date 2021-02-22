@@ -438,7 +438,7 @@ INLINE void helper_check_in_buffers(bool postpone, uint32_t hid)
           {
             cmd_atomic_add_t *c = (cmd_atomic_add_t *) gcmd;
             gentry_t *g = mem_get_gentry(c->gmt_array);
-            uint8_t *p = mem_get_loc_ptr(g, c->offset, g->nbytes_elem);
+            uint8_t *p = mem_get_loc_ptr(g, c->offset, g->nbytes_elem) + c->byte_offset;
             int64_t ret = mem_atomic_add(p, c->value, g->nbytes_elem);
             helper_send_rep_value(rnid, hid, c->tid,
                 c->ret_value_ptr, ret);
@@ -450,7 +450,7 @@ INLINE void helper_check_in_buffers(bool postpone, uint32_t hid)
           {
             cmd_atomic_double_t *c = (cmd_atomic_double_t *) gcmd;
             gentry_t *g = mem_get_gentry(c->gmt_array);
-            int64_t * p = (int64_t *) mem_get_loc_ptr(g, c->offset, g->nbytes_elem);
+            int64_t * p = (int64_t *) (mem_get_loc_ptr(g, c->offset, g->nbytes_elem) + c->byte_offset);
             double old_value;
 
             while (true) {
@@ -469,7 +469,7 @@ INLINE void helper_check_in_buffers(bool postpone, uint32_t hid)
           {
             cmd_atomic_double_t *c = (cmd_atomic_double_t *) gcmd;
             gentry_t *g = mem_get_gentry(c->gmt_array);
-            int64_t * p = ((int64_t *) mem_get_loc_ptr(g, c->offset, g->nbytes_elem)) + c->field_offset;
+            int64_t * p = (int64_t *) (mem_get_loc_ptr(g, c->offset, g->nbytes_elem) + c->byte_offset);
             double old_value;
 
             while (true) {
@@ -488,7 +488,7 @@ INLINE void helper_check_in_buffers(bool postpone, uint32_t hid)
           {
             cmd_atomic_double_t *c = (cmd_atomic_double_t *) gcmd;
             gentry_t *g = mem_get_gentry(c->gmt_array);
-            int64_t * p = (int64_t *) mem_get_loc_ptr(g, c->offset, g->nbytes_elem);
+            int64_t * p = (int64_t *) (mem_get_loc_ptr(g, c->offset, g->nbytes_elem) + c->byte_offset);
             double old_value;
 
             while (true) {
@@ -507,7 +507,7 @@ INLINE void helper_check_in_buffers(bool postpone, uint32_t hid)
           {
             cmd_atomic_int_t *c = (cmd_atomic_int_t *) gcmd;
             gentry_t *g = mem_get_gentry(c->gmt_array);
-            int64_t * p = (int64_t *) mem_get_loc_ptr(g, c->offset, g->nbytes_elem);
+            int64_t * p = (int64_t *) (mem_get_loc_ptr(g, c->offset, g->nbytes_elem) + c->byte_offset);
             int64_t old_value;
 
             while (true) {
@@ -526,7 +526,7 @@ INLINE void helper_check_in_buffers(bool postpone, uint32_t hid)
           {
             cmd_atomic_int_t *c = (cmd_atomic_int_t *) gcmd;
             gentry_t *g = mem_get_gentry(c->gmt_array);
-            int64_t * p = (int64_t *) mem_get_loc_ptr(g, c->offset, g->nbytes_elem);
+            int64_t * p = (int64_t *) (mem_get_loc_ptr(g, c->offset, g->nbytes_elem) + c->byte_offset);
             int64_t old_value;
 
             while (true) {
@@ -545,7 +545,7 @@ INLINE void helper_check_in_buffers(bool postpone, uint32_t hid)
           {
             cmd_atomic_cas_t *c = (cmd_atomic_cas_t *) gcmd;
             gentry_t *g = mem_get_gentry(c->gmt_array);
-            uint8_t *p = mem_get_loc_ptr(g, c->offset, g->nbytes_elem);
+            uint8_t *p = mem_get_loc_ptr(g, c->offset, g->nbytes_elem) + c->byte_offset;
             int64_t ret = mem_atomic_cas(p, c->old_value, c->new_value,
                 g->nbytes_elem);
             helper_send_rep_value(rnid, hid, c->tid,

@@ -194,6 +194,7 @@ typedef struct PACKED_STR {
   uint32_t tid:TID_BITS;
   gmt_data_t gmt_array;
   uint64_t offset;
+  uint64_t byte_offset;
   uint64_t ret_value_ptr:VIRT_ADDR_PTR_BITS;
   uint64_t old_value;
   uint64_t new_value;
@@ -204,6 +205,7 @@ typedef struct PACKED_STR {
   uint32_t tid:TID_BITS;
   gmt_data_t gmt_array;
   uint64_t offset;
+  uint64_t byte_offset;
   uint64_t ret_value_ptr:VIRT_ADDR_PTR_BITS;
   uint64_t value;
 } cmd_atomic_add_t;
@@ -213,7 +215,7 @@ typedef struct PACKED_STR {
   uint32_t tid:TID_BITS;
   gmt_data_t gmt_array;
   uint64_t offset;
-  uint64_t field_offset;
+  uint64_t byte_offset;
   uint64_t ret_value_ptr:VIRT_ADDR_PTR_BITS;
   double value;
 } cmd_atomic_double_t;
@@ -223,6 +225,7 @@ typedef struct PACKED_STR {
   uint32_t tid:TID_BITS;
   gmt_data_t gmt_array;
   uint64_t offset;
+  uint64_t byte_offset;
   uint64_t ret_value_ptr:VIRT_ADDR_PTR_BITS;
   int64_t value;
 } cmd_atomic_int_t;

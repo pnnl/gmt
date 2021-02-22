@@ -237,7 +237,7 @@ GMT_INLINE void gmt_memcpy_nb(gmt_data_t g_src, uint64_t g_src_offset,
     /* prepare space for argument of possible remote execution */
     memcpy_func_args_t *args = (memcpy_func_args_t *) _malloc((num_nodes - 1) * sizeof(memcpy_func_args_t));
 
-    //counter of remote executions
+    // counter of remote executions
     uint32_t cnt = 0;
 
     while (g_src_offset_cur < g_src_offset_end) {
