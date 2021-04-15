@@ -86,9 +86,10 @@ int gmt_main (uint64_t argc, char * argv[]) {
 
 /**********  CREATE NETFLOW SERVER TABLE **********/
   std::string serverTableName = "Servers";
-  gmt_data_t serverTableSchema = gmt_alloc(2, SCHEMA_ELEMS_BYTES, GMT_ALLOC_REPLICATE, "serverSchema");
-  assign_schema_pair("server", UINT, 0, serverTableSchema);
-  assign_schema_pair("hops",   INT,  1, serverTableSchema);
+  gmt_data_t serverTableSchema = gmt_alloc(3, SCHEMA_ELEMS_BYTES, GMT_ALLOC_REPLICATE, "serverSchema");
+  assign_schema_pair("server",   UINT, 0, serverTableSchema);
+  assign_schema_pair("hopsTo",   INT,  1, serverTableSchema);
+  assign_schema_pair("hopsFrom", INT,  2, serverTableSchema);
   Table Servers = uniqueTable(__cols01, serverTableSchema, Netflow, serverTableName);
 
   printf("Time to construct server table = %lf\n", my_timer() - time1);
@@ -122,11 +123,11 @@ int gmt_main (uint64_t argc, char * argv[]) {
 
   BFS_Setup(graph);
 
-  // checkSort("Netflow", Netflow.data, __cols01);
-  // checkSort("Events", Events.data, __cols01);
-  // checkSort("Boots", Boots.data, __cols01);
-  // checkSort("Servers", Servers.data, __cols0);
-  // checkSort("Processes", Processes.data, __cols01);
+  checkSort("Netflow", Netflow.data, __cols01);
+  checkSort("Events", Events.data, __cols01);
+  checkSort("Boots", Boots.data, __cols01);
+  checkSort("Servers", Servers.data, __cols0);
+  checkSort("Processes", Processes.data, __cols01);
   // printTable(100, "Netflow", Netflow);
   // printTable(100, "Events", Events);
   // printTable(100, "Servers", Servers);

@@ -22,80 +22,106 @@ typedef struct CS_args_t {
 } CS_args_t;
 
 
-typedef struct Find_args_t {
+typedef struct Bound_args_t {
   gmt_data_t data;
-  uint64_t num_rows;
+  uint64_t lb;
+  uint64_t ub;
   uint64_t columns[SORT_COLS];
   uint64_t keyRow[SORT_COLS];
-} Find_args_t;
+} Bound_args_t;
 
 
 /********** FIND METHODS **********/
 void _LowerBound(const void * args, uint32_t args_size, void * ret, uint32_t * ret_size, gmt_handle_t handle) {
-  Find_args_t * my_args = (Find_args_t *) args;
-  uint64_t index = lowerbound((uint64_t *) my_args->keyRow, my_args->data, get_comparator(my_args->columns));
+  Bound_args_t * my_args = (Bound_args_t *) args;
+  uint64_t lb = my_args->lb;
+  uint64_t ub = my_args->ub;
+  uint64_t index = lowerbound((uint64_t *) my_args->keyRow, my_args->data, get_comparator(my_args->columns), lb, ub);
 
-  if (index < my_args->num_rows) {
+  if ((index >= lb) && (index < ub)) {
      ((uint64_t *) ret)[0] = index;
      * ret_size = sizeof(uint64_t);
 } }
 
 void _UpperBound(const void * args, uint32_t args_size, void * ret, uint32_t * ret_size, gmt_handle_t handle) {
-  Find_args_t * my_args = (Find_args_t *) args;
-  uint64_t index = upperbound((uint64_t *) my_args->keyRow, my_args->data, get_comparator(my_args->columns));
+  Bound_args_t * my_args = (Bound_args_t *) args;
+  uint64_t lb = my_args->lb;
+  uint64_t ub = my_args->ub;
+  uint64_t index = upperbound((uint64_t *) my_args->keyRow, my_args->data, get_comparator(my_args->columns), lb, ub);
 
-  if (index < my_args->num_rows) {
+  if ((index >= lb) && (index < ub)) {
      ((uint64_t *) ret)[0] = index;
      * ret_size = sizeof(uint64_t);
 } }
 
 uint64_t gmt_lower_bound(std::vector <uint64_t> & keyRow, gmt_data_t data, uint64_t * columns) {
-  uint64_t lb = gmt_nelems_tot(data);
-  uint32_t lbSize = sizeof(uint64_t);
+  return gmt_lower_bound_limit(keyRow, data, columns, 0, gmt_nelems_tot(data));
+}
+
+uint64_t gmt_lower_bound_limit(std::vector <uint64_t> & keyRow,
+     gmt_data_t data, uint64_t * columns, uint64_t lb, uint64_t ub) {
 
   if (GD_GET_TYPE_DISTR(data) == GMT_ALLOC_REPLICATE) {
-     return lowerbound(keyRow.data(), data, get_comparator(columns));
+     return lowerbound(keyRow.data(), data, get_comparator(columns), lb, ub);
 
   } else {
 
-     Find_args_t args;
+     uint64_t ret = ub;
+     uint32_t retSize = sizeof(uint64_t);
+
+     Bound_args_t args;
+     args.lb = lb;
+     args.ub = ub;
      args.data = data;
-     args.num_rows = gmt_nelems_tot(data);
      memcpy(args.columns, columns, SORT_COLS * sizeof(uint64_t));
      memcpy(args.keyRow, keyRow.data(), keyRow.size() * sizeof(uint64_t));
 
      for (uint32_t node = 0; node < gmt_num_nodes(); node ++)
-         gmt_execute_on_node_nb(node, _LowerBound, & args, sizeof(Find_args_t), & lb, & lbSize, GMT_PREEMPTABLE);
+         gmt_execute_on_node_nb(node, _LowerBound, & args, sizeof(Bound_args_t), & ret, & retSize, GMT_PREEMPTABLE);
 
-    gmt_wait_execute_nb();
-    return lb;
+     gmt_wait_execute_nb();
+     return ret;
 } }
 
 uint64_t gmt_upper_bound(std::vector <uint64_t> & keyRow, gmt_data_t data, uint64_t * columns) {
-  uint64_t ub = gmt_nelems_tot(data);
-  uint32_t ubSize = sizeof(uint64_t);
+  return gmt_upper_bound_limit(keyRow, data, columns, 0, gmt_nelems_tot(data));
+}
+
+uint64_t gmt_upper_bound_limit(std::vector <uint64_t> & keyRow,
+     gmt_data_t data, uint64_t * columns, uint64_t lb, uint64_t ub) {
 
   if (GD_GET_TYPE_DISTR(data) == GMT_ALLOC_REPLICATE) {
-     return upperbound(keyRow.data(), data, get_comparator(columns));
+     return upperbound(keyRow.data(), data, get_comparator(columns), lb, ub);
 
   } else {
 
-     Find_args_t args;
+     uint64_t ret = ub;
+     uint32_t retSize = sizeof(uint64_t);
+
+     Bound_args_t args;
+     args.lb = lb;
+     args.ub = ub;
      args.data = data;
-     args.num_rows = gmt_nelems_tot(data);
      memcpy(args.columns, columns, SORT_COLS * sizeof(uint64_t));
      memcpy(args.keyRow, keyRow.data(), keyRow.size() * sizeof(uint64_t));
 
      for (uint32_t node = 0; node < gmt_num_nodes(); node ++)
-         gmt_execute_on_node_nb(node, _UpperBound, & args, sizeof(Find_args_t), & ub, & ubSize, GMT_PREEMPTABLE);
+         gmt_execute_on_node_nb(node, _UpperBound, & args, sizeof(Bound_args_t), & ret, & retSize, GMT_PREEMPTABLE);
 
      gmt_wait_execute_nb();
-    return ub;
+     return ret;
 } }
 
-std::pair <uint64_t, uint64_t> gmt_equal_range(
-    std::vector <uint64_t> & keyRow, gmt_data_t data, uint64_t * columns) {
-  return std::make_pair( gmt_lower_bound(keyRow, data, columns), gmt_upper_bound(keyRow, data, columns) );
+std::pair <uint64_t, uint64_t> gmt_equal_range(std::vector <uint64_t> & keyRow, gmt_data_t data, uint64_t * columns) {
+  return gmt_equal_range_limit(keyRow, data, columns, 0, gmt_nelems_tot(data));
+}
+
+
+std::pair <uint64_t, uint64_t> gmt_equal_range_limit(std::vector <uint64_t> & keyRow,
+     gmt_data_t data, uint64_t * columns, uint64_t lb, uint64_t ub) {
+  uint64_t llb = gmt_lower_bound_limit(keyRow, data, columns, lb, ub);
+  uint64_t uub = gmt_upper_bound_limit(keyRow, data, columns, lb, ub);
+  return std::make_pair(llb, uub);
 }
 
 

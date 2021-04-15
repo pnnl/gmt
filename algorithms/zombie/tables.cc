@@ -16,7 +16,6 @@ typedef struct UT_args_t {
   uint64_t columns[SORT_COLS];
 } UT_args_t;
 
-
 /******************** UTILITIES ********************/
 void assign_schema_pair(std::string name, SchemaType type, uint64_t ndx, gmt_data_t table) {
   uint64_t entry[SCHEMA_NAME_WORDS + 1];
@@ -190,6 +189,42 @@ void readTableFiles(const void * args, uint32_t args_size, void * ret, uint32_t 
 /******************** SORT TABLE ********************/
 void sortTable(Table * table, uint64_t columns [SORT_COLS]) {
   table->data = gmt_sort(table->data, columns);
+}
+
+
+/******************** REVERSE EDGE TABLE ********************/
+void reverseEdge(const void * args, uint32_t args_size, void * ret, uint32_t * ret_size, gmt_handle_t handle) {
+  gentry_t * ga = mem_get_gentry( * ((gmt_data_t *) args));
+
+  for (uint64_t i = 0; i < ga->nbytes_loc; i += ga->nbytes_elem) {
+    uint64_t src = * ((uint64_t *) (ga->data + i + 0));
+    uint64_t dst = * ((uint64_t *) (ga->data + i + 8));
+    * ((uint64_t *) (ga->data + i + 0)) = dst;     // src in new table is dst in table
+    * ((uint64_t *) (ga->data + i + 8)) = src;     // dst in new table is src in table
+} }
+
+Table reverseEdgeTable(Table & table) {
+  uint64_t num_rows = table.num_rows;
+  uint64_t num_cols = table.num_cols;
+
+  Table newTable;
+  newTable.num_cols = num_cols;
+  newTable.num_rows = num_rows;
+  newTable.schema = table.schema;
+  newTable.data = gmt_alloc(num_rows, num_cols * sizeof(uint64_t), GMT_ALLOC_PARTITION_FROM_ZERO, "");
+
+  uint64_t src[SCHEMA_NAME_WORDS + 1];
+  uint64_t dst[SCHEMA_NAME_WORDS + 1];
+  gmt_get(table.schema, 0, (void *) src, 1);        // get src column name and type of input table
+  gmt_get(table.schema, 1, (void *) dst, 1);        // get dst column name and type of input table
+  gmt_put(newTable.schema, 0, (void *) dst, 1);     // src in reverse table is dst of input table
+  gmt_put(newTable.schema, 1, (void *) src, 1);     // dst in reverse table is src of input table 
+  
+  gmt_memcpy(table.data, 0, newTable.data, 0, num_rows);
+  gmt_execute_on_all(reverseEdge, (void *) & newTable.data, sizeof(gmt_data_t), GMT_PREEMPTABLE);
+  
+  sortTable(& newTable, __cols01);
+  return newTable;
 }
 
 

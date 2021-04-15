@@ -81,6 +81,7 @@ uint64_t IP_to_Uint(std::string &);
 std::string Uint_to_String(uint64_t, SchemaType);
 uint64_t String_to_Uint(std::string &, SchemaType);
 
+Table reverseEdgeTable(Table &);
 void sortTable(Table *, uint64_t *);
 uint64_t findColumn(std::string, gmt_data_t &);
 void printTable(uint64_t, std::string, Table &);
