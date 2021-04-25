@@ -1,0 +1,108 @@
+changes_in_code:>     uint64_t size = ga->nbytes_elem;
+changes_in_code:>     uint64_t size = ga->nbytes_elem;
+changes_in_code:>     uint64_t size = ga->nbytes_elem;
+changes_in_code:>     uint64_t size = ga->nbytes_elem;
+changes_in_code:>     uint64_t size = ga->nbytes_elem;
+gmt_execute.c:  uint64_t goffset_bytes = ga->nbytes_elem * elem_offset;
+gmt_for.c:  if(num_elems > ga->nbytes_tot / ga->nbytes_elem){
+gmt_for.c:        num_elems,  ga->nbytes_tot / ga->nbytes_elem);
+gmt_for.c:    block_partition(i, ga->nbytes_tot/ga->nbytes_elem,
+gmt_for.c:        ga->nbytes_elem, gmt_array,
+gmt_for.c:    _assert(goffset_bytes % ga->nbytes_elem == 0);
+gmt_for.c:    _assert(nbytes_loc % ga->nbytes_elem == 0);
+gmt_for.c:    uint64_t el_start = goffset_bytes / ga->nbytes_elem;
+gmt_for.c:    uint64_t el_end = el_start + nbytes_loc / ga->nbytes_elem;
+gmt_malloc.c:        if (ga->name != NULL && (strcmp(ga->name, name) == 0))
+gmt_malloc.c:            return ga->gmt_array;
+gmt_malloc.c:    return ga->nbytes_elem;
+gmt_put_get.c:    uint64_t remaining = ((last_byte - curr_byte) / ga->nbytes_elem) * num_bytes;     // remaining bytes to be put
+gmt_put_get.c:    curr_byte += num_elems * ga->nbytes_elem;
+gmt_put_get.c:    uint64_t num_elems = granted / (sizeof(uint64_t) + ga->nbytes_elem);       // number of index/elem pairs
+gmt_put_get.c:    uint64_t put_bytes = num_elems * (sizeof(uint64_t) + ga->nbytes_elem);     // number of buffer bytes used
+gmt_put_get.c:    uthread_incr_req_nbytes(tid, num_elems * ga->nbytes_elem);
+gmt_put_get.c:    data += num_elems * ga->nbytes_elem;
+gmt_put_get.c:    uint64_t goffset_bytes = elem_offset * ga->nbytes_elem;
+gmt_put_get.c:    uint64_t nbytes = num_elem * ga->nbytes_elem;
+gmt_put_get.c:        _assert(ga->data != NULL);
+gmt_put_get.c:        mem_put(&ga->data[goffset_bytes], elem, nbytes);
+gmt_put_get.c:            avail_bytes = MIN(rest_bytes, ga->nbytes_loc - loffset);
+gmt_put_get.c:            _assert(avail_bytes > 0 && ga->data != NULL);
+gmt_put_get.c:            mem_put(&ga->data[loffset], data_cur, avail_bytes);
+gmt_put_get.c:                avail_bytes = MIN(rest_bytes, ga->nbytes_block - roffset);
+gmt_put_get.c:                avail_bytes == 4 || avail_bytes == 2 || avail_bytes == 1) && (avail_bytes==ga->nbytes_elem))
+gmt_put_get.c:    uint64_t size = ga->nbytes_elem;
+gmt_put_get.c:        mem_put_value(&ga->data[goffset_bytes], value, size);
+gmt_put_get.c:  _assert(ga->data != NULL);
+gmt_put_get.c:  _assert(byte_offset <= ga->nbytes_elem);                   // number of bytes per element is not exceeded
+gmt_put_get.c:  uint64_t curr_byte = index * ga->nbytes_elem;
+gmt_put_get.c:  uint64_t last_byte = curr_byte + num_elems * ga->nbytes_elem;
+gmt_put_get.c:       uint8_t * curr_byte_local = ga->data + curr_byte;
+gmt_put_get.c:       uint8_t * last_byte_local = curr_byte_local + num_elems * ga->nbytes_elem;
+gmt_put_get.c:         curr_byte_local += ga->nbytes_elem;
+gmt_put_get.c:         curr_byte += ga->nbytes_elem;
+gmt_put_get.c:       uint64_t avail_bytes = MIN(remaining_bytes, ga->nbytes_loc - loffset);
+gmt_put_get.c:       uint8_t * curr_byte_local = ga->data + loffset;
+gmt_put_get.c:       uint8_t * last_byte_local = ga->data + loffset + avail_bytes;
+gmt_put_get.c:         curr_byte_local += ga->nbytes_elem;
+gmt_put_get.c:         curr_byte += ga->nbytes_elem;
+gmt_put_get.c:       uint64_t avail_bytes = MIN(remaining_bytes, ga->nbytes_block - roffset);
+gmt_put_get.c:       data_ptr  += (avail_bytes / ga->nbytes_elem) * num_bytes;
+gmt_put_get.c:  mem_check_last_byte(ga, elem_offset * ga->nbytes_elem);
+gmt_put_get.c:  if (mem_gmt_data_is_local(ga, gmt_array, elem_offset*ga->nbytes_elem,
+gmt_put_get.c:    return (void *)(ga->data + loffset);
+gmt_put_get.c:    uint64_t goffset_bytes = elem_offset * ga->nbytes_elem;
+gmt_put_get.c:    uint64_t nbytes = num_elem * ga->nbytes_elem;
+gmt_put_get.c:            avail_bytes = MIN(rest_bytes, ga->nbytes_loc - loffset);
+gmt_put_get.c:                avail_bytes = MIN(rest_bytes, ga->nbytes_block - roffset_bytes);
+gmt_put_get.c:  _assert(ga->data != NULL);
+gmt_put_get.c:  _assert(byte_offset + num_bytes <= ga->nbytes_elem);       // number of bytes per element is not exceeded
+gmt_put_get.c:  uint64_t curr_byte = index * ga->nbytes_elem;
+gmt_put_get.c:  uint64_t last_byte = curr_byte + num_elems * ga->nbytes_elem;
+gmt_put_get.c:       avail_bytes = MIN(remaining_bytes, ga->nbytes_loc - loffset);
+gmt_put_get.c:       uint8_t * curr_byte_local = ga->data + loffset;
+gmt_put_get.c:       uint8_t * last_byte_local = ga->data + loffset + avail_bytes;
+gmt_put_get.c:         curr_byte_local += ga->nbytes_elem;
+gmt_put_get.c:         curr_byte += ga->nbytes_elem;
+gmt_put_get.c:      avail_bytes = MIN(remaining_bytes, ga->nbytes_block - roffset);
+gmt_put_get.c:      data_ptr += (avail_bytes / ga->nbytes_elem) * num_bytes;
+gmt_put_get.c:  _assert(ga->data != NULL);
+gmt_put_get.c:    uint64_t ga_byte = index[i] * ga->nbytes_elem;
+gmt_put_get.c:       memcpy(my_data, ga->data + ga_byte, ga->nbytes_elem);
+gmt_put_get.c:       my_data += ga->nbytes_elem;
+gmt_put_get.c:         ga_byte = index[i] * ga->nbytes_elem;
+gmt_put_get.c:       my_data += (i - first_i) * ga->nbytes_elem;
+gmt_put_get.c:  _assert(ga->data != NULL);
+gmt_put_get.c:  uint64_t num_cols = ga->nbytes_elem / sizeof(uint64_t);;
+gmt_put_get.c:    uint64_t ga_byte = stream[0] * ga->nbytes_elem;
+gmt_put_get.c:    memcpy(ga->data + ga_byte, stream + 1, ga->nbytes_elem);
+gmt_put_get.c:       uint64_t ga_byte = stream[0] * ga->nbytes_elem;
+gmt_put_get.c:          memcpy(ga->data + ga_byte, stream + 1, ga->nbytes_elem);
+gmt_put_get.c:           ga_byte = stream[0] * ga->nbytes_elem;
+gmt_put_get.c:    uint64_t size = ga->nbytes_elem;
+gmt_put_get.c:    uint64_t size = ga->nbytes_elem;
+gmt_put_get.c:    uint64_t size = ga->nbytes_elem;
+gmt_put_get.c:    uint64_t size = ga->nbytes_elem;
+gmt_put_get.c:    uint64_t size = ga->nbytes_elem;
+gmt_put_get.c:    uint64_t size = ga->nbytes_elem;
+gmt_put_get.c:    uint64_t size = ga->nbytes_elem; 
+gmt_put_get.c:  _assert(ga->data != NULL);
+gmt_put_get.c:  uint64_t num_cols = ga->nbytes_elem / sizeof(uint64_t);;
+gmt_put_get.c:  uint64_t * stream = (uint64_t *) malloc(num_elems * (ga->nbytes_elem + sizeof(uint64_t)));
+gmt_put_get.c:    memcpy(stream + s_ndx + 1, (uint64_t *) data + d_ndx, ga->nbytes_elem);
+gmt_put_get.c:  block_partition(node_id, ga->nbytes_tot/ga->nbytes_elem,
+gmt_put_get.c:        ga->nbytes_elem, gmt_array,
+gmt_put_get.c:  return nbytes_loc/ga->nbytes_elem;
+memory.c:            uint64_t nbytes = ga->nbytes_tot + sizeof(gentry_t);
+memory.c:            ga->data = (uint8_t *)mmap(ga->data, nbytes, config.state_prot, flag, fd, 0);
+memory.c:            if (ga->data == MAP_FAILED)
+memory.c:            ga->data += sizeof(gentry_t);
+memory.c:            ga->name = (char *)_malloc(strlen(name) + 1);
+memory.c:            memcpy(ga->name, name, strlen(name) + 1);
+memory.c:            printf("node %d - RESTORE NAME:%s\n", node_id, ga->name);
+memory.c:        _assert(ga->nbytes_tot == 0);
+memory.c:        if (ga->nbytes_tot == 0)
+memory.c:        if (ga->nbytes_tot > 0 && ga->is_tmp) {            
+memory.c:            unallocated_mem += ga->nbytes_tot;
+memory.c:                "allocated at exit %ld bytes\n", node_id, ga->name, i, 
+memory.c:                ga->nbytes_tot);
+memory.c:            mem_free(ga->gmt_array);

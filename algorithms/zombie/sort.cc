@@ -12,7 +12,7 @@ typedef struct args_t {
   gmt_data_t data;
   gmt_data_t outdata;
   uint64_t num_tasks;
-  uint64_t block_size;
+  uint64_t blocksize;
   uint64_t columns[SORT_COLS];
 } args_t;
 
@@ -59,15 +59,20 @@ uint64_t gmt_lower_bound(std::vector <uint64_t> & keyRow, gmt_data_t data, uint6
 }
 
 uint64_t gmt_lower_bound_limit(std::vector <uint64_t> & keyRow,
-     gmt_data_t data, uint64_t * columns, uint64_t lb, uint64_t ub) {
+  gmt_data_t data, uint64_t * columns, uint64_t lb, uint64_t ub) {
 
   if (GD_GET_TYPE_DISTR(data) == GMT_ALLOC_REPLICATE) {
      return lowerbound(keyRow.data(), data, get_comparator(columns), lb, ub);
 
   } else {
 
-     uint64_t ret = ub;
-     uint32_t retSize = sizeof(uint64_t);
+     uint32_t lb_node, ub_node;
+     uint64_t roffset, ret = ub;
+     uint32_t num_nodes = gmt_num_nodes(), retSize = sizeof(uint64_t);
+
+     gentry_t * const ga = mem_get_gentry(data);
+     uint64_t lb_byte_offset = lb * ga->nbytes_elem;
+     uint64_t ub_byte_offset = ub * ga->nbytes_elem;
 
      Bound_args_t args;
      args.lb = lb;
@@ -76,8 +81,13 @@ uint64_t gmt_lower_bound_limit(std::vector <uint64_t> & keyRow,
      memcpy(args.columns, columns, SORT_COLS * sizeof(uint64_t));
      memcpy(args.keyRow, keyRow.data(), keyRow.size() * sizeof(uint64_t));
 
-     for (uint32_t node = 0; node < gmt_num_nodes(); node ++)
-         gmt_execute_on_node_nb(node, _LowerBound, & args, sizeof(Bound_args_t), & ret, & retSize, GMT_PREEMPTABLE);
+     mem_locate_gmt_data_remote(ga, lb_byte_offset, & lb_node, & roffset);
+     mem_locate_gmt_data_remote(ga, ub_byte_offset, & ub_node, & roffset);
+     if (ub_node < lb_node) ub_node += num_nodes;
+
+     for (uint32_t node = lb_node; node <= ub_node; node ++)
+       gmt_execute_on_node_nb(node % num_nodes, _LowerBound, & args,
+                sizeof(Bound_args_t), & ret, & retSize, GMT_PREEMPTABLE);
 
      gmt_wait_execute_nb();
      return ret;
@@ -88,15 +98,20 @@ uint64_t gmt_upper_bound(std::vector <uint64_t> & keyRow, gmt_data_t data, uint6
 }
 
 uint64_t gmt_upper_bound_limit(std::vector <uint64_t> & keyRow,
-     gmt_data_t data, uint64_t * columns, uint64_t lb, uint64_t ub) {
+  gmt_data_t data, uint64_t * columns, uint64_t lb, uint64_t ub) {
 
   if (GD_GET_TYPE_DISTR(data) == GMT_ALLOC_REPLICATE) {
      return upperbound(keyRow.data(), data, get_comparator(columns), lb, ub);
 
   } else {
 
-     uint64_t ret = ub;
-     uint32_t retSize = sizeof(uint64_t);
+     uint32_t lb_node, ub_node;
+     uint64_t roffset, ret = ub;
+     uint32_t num_nodes = gmt_num_nodes(), retSize = sizeof(uint64_t);
+
+     gentry_t * const ga = mem_get_gentry(data);
+     uint64_t lb_byte_offset = lb * ga->nbytes_elem;
+     uint64_t ub_byte_offset = ub * ga->nbytes_elem;
 
      Bound_args_t args;
      args.lb = lb;
@@ -105,8 +120,13 @@ uint64_t gmt_upper_bound_limit(std::vector <uint64_t> & keyRow,
      memcpy(args.columns, columns, SORT_COLS * sizeof(uint64_t));
      memcpy(args.keyRow, keyRow.data(), keyRow.size() * sizeof(uint64_t));
 
-     for (uint32_t node = 0; node < gmt_num_nodes(); node ++)
-         gmt_execute_on_node_nb(node, _UpperBound, & args, sizeof(Bound_args_t), & ret, & retSize, GMT_PREEMPTABLE);
+     mem_locate_gmt_data_remote(ga, lb_byte_offset, & lb_node, & roffset);
+     mem_locate_gmt_data_remote(ga, ub_byte_offset, & ub_node, & roffset);
+     if (ub_node < lb_node) ub_node += num_nodes;
+
+     for (uint32_t node = lb_node; node <= ub_node; node ++)
+       gmt_execute_on_node_nb(node % num_nodes, _UpperBound, & args,
+                sizeof(Bound_args_t), & ret, & retSize, GMT_PREEMPTABLE);
 
      gmt_wait_execute_nb();
      return ret;
@@ -132,7 +152,7 @@ void merge_block(uint64_t it, uint64_t num_iter, const void * args, gmt_handle_t
   gmt_data_t data = my_args->data;
   gmt_data_t outdata = my_args->outdata;
   uint64_t num_tasks = my_args->num_tasks;
-  uint64_t block_size = my_args->block_size;
+  uint64_t blocksize = my_args->blocksize;
   uint64_t num_workers = gmt_num_nodes() * gmt_num_workers();
 
   gentry_t * ga = mem_get_gentry(data);
@@ -151,46 +171,45 @@ void merge_block(uint64_t it, uint64_t num_iter, const void * args, gmt_handle_t
      my_task_worker_id = it % wpt;
   }
 
-  uint64_t start = my_task * block_size;
-  uint64_t mid   = start + (block_size >> 1);
-  uint64_t end   = MIN(start + block_size, gmt_nelems_tot(data));
+  uint64_t start = my_task * blocksize;
+  uint64_t mid   = start + (blocksize >> 1);
+  uint64_t end   = MIN(start + blocksize, gmt_nelems_tot(data));
 
   merge_block_section(my_task_worker_id, wpt, ga->nbytes_elem,
-       start, mid, end, outdata, data, get_comparator(my_args->columns));
+       start, mid, end, outdata, data, my_args->columns, get_comparator(my_args->columns));
 }
 
 
-gmt_data_t merge_sorted_blocks(uint64_t block_size, gmt_data_t data, uint64_t columns[SORT_COLS]) {
+gmt_data_t merge_sorted_blocks(uint64_t num_blocks, uint64_t blocksize, gmt_data_t data, uint64_t columns[SORT_COLS]) {
   gentry_t * ga = mem_get_gentry(data);
-  uint64_t num_bytes = ga->nbytes_elem;
   uint64_t num_elems = gmt_nelems_tot(data);
   uint64_t num_workers = gmt_num_nodes() * gmt_num_workers();
-  gmt_data_t outdata = gmt_alloc(num_elems, num_bytes, GMT_ALLOC_PARTITION_FROM_ZERO, "outdata");
-
+  gmt_data_t outdata = gmt_alloc(num_elems, ga->nbytes_elem, GMT_ALLOC_PARTITION_FROM_ZERO, "outdata");
 
   args_t args;   
   args.data = data;
   args.outdata = outdata;
-  args.block_size = block_size << 1;
+  args.blocksize = blocksize;
   memcpy(args.columns, columns, SORT_COLS * sizeof(uint64_t));
 
-  for ( ; args.block_size < (num_elems << 1); args.block_size <<= 1) {
-      uint64_t num_tasks = CEILING(num_elems, args.block_size);
-      uint64_t start = (num_tasks - 1) * args.block_size;         // of last task
-      uint64_t mid = start + (args.block_size >> 1);              // of last task
-      uint64_t end = MIN(start + args.block_size, num_elems);     // of last task
+  while (num_blocks > 1) {
+     args.blocksize = args.blocksize << 1;
 
-      if (end <= mid) {                                           // last task has no right hand side
-         gmt_memcpy_nb(data, start, outdata, start, end - start);
-         num_tasks --;
-      }
+     if (num_blocks % 2 == 1) {      // if previous number of blocks is odd, then last block has no partner
+        num_blocks = num_blocks / 2 + 1;
+        args.num_tasks = num_blocks - 1;
+        uint64_t start = args.num_tasks * args.blocksize;     // copy last block to outdata
+        gmt_memcpy_nb(args.data, start, args.outdata, start, num_elems - start);
+     } else {
+        num_blocks = num_blocks / 2;
+        args.num_tasks = num_blocks;
+     }
 
-      args.num_tasks = num_tasks;
-      gmt_for_loop(num_workers, 1, merge_block, & args, sizeof(args_t), GMT_SPAWN_SPREAD);
+     gmt_for_loop(num_workers, 1, merge_block, & args, sizeof(args_t), GMT_SPAWN_SPREAD);
 
-      gmt_wait_data();
-      gmt_wait_execute_nb();
-      std::swap(args.data, args.outdata);
+     gmt_wait_data();
+     gmt_wait_execute_nb();
+     std::swap(args.data, args.outdata);
   }
 
   gmt_free(args.outdata);
@@ -202,11 +221,11 @@ void sort_blocks(uint64_t i, uint64_t num_iter, const void * args, gmt_handle_t 
   args_t * my_args = (args_t *) args;
 
   gmt_data_t data = my_args->data;
-  uint64_t block_size = my_args->block_size;
+  uint64_t blocksize = my_args->blocksize;
   gentry_t * ga = mem_get_gentry(my_args->data);
 
-  uint64_t start = i * block_size;
-  uint64_t end = MIN(start + block_size, gmt_nelems_tot(data));
+  uint64_t start = i * blocksize;
+  uint64_t end = MIN(start + blocksize, gmt_nelems_tot(data));
   if (start >= end) return;
 
   uint64_t num_elems = end - start;
@@ -234,14 +253,15 @@ void sort_blocks(uint64_t i, uint64_t num_iter, const void * args, gmt_handle_t 
 
 gmt_data_t gmt_sort(gmt_data_t data, uint64_t * columns) {
   uint64_t num_workers = gmt_num_nodes() * gmt_num_workers();
+  uint64_t blocksize = CEILING(gmt_nelems_tot(data), num_workers);
 
   args_t my_args;
   my_args.data = data;
-  my_args.block_size = CEILING(gmt_nelems_tot(data), num_workers);
+  my_args.blocksize = blocksize;
   memcpy(my_args.columns, columns, SORT_COLS * sizeof(uint64_t));
 
   gmt_for_loop(num_workers, 1, sort_blocks, & my_args, sizeof(my_args), GMT_SPAWN_SPREAD);
-  return merge_sorted_blocks(my_args.block_size, data, columns);
+  return merge_sorted_blocks(num_workers, blocksize, data, columns);
 }
 
 

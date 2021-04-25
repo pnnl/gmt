@@ -60,16 +60,16 @@ template <typename Comparator>
 uint64_t lowerbound(uint64_t * keyRow, gmt_data_t data, Comparator comp, uint64_t lb, uint64_t ub) {
    gentry_t * ga  = mem_get_gentry(data);
    uint64_t node_first_index = ga->goffset_bytes / ga->nbytes_elem;
-   uint64_t node_last_index  = (ga->goffset_bytes + ga->nbytes_loc - ga->nbytes_elem) / ga->nbytes_elem;
+   uint64_t node_last_index  = (ga->goffset_bytes + ga->nbytes_loc) / ga->nbytes_elem;
 
    // search bounds do not overlap my index set
-   if ((ub < node_first_index) || (lb > node_last_index)) return ULLONG_MAX;
+   if ((ub < node_first_index) || (lb >= node_last_index)) return ULLONG_MAX;
 
    uint64_t first_index = MAX(node_first_index, lb);
    uint64_t last_index  = MIN(node_last_index,  ub);
    uint64_t num_elems   = last_index - first_index;
    uint8_t * first_elem = ga->data + ((first_index - node_first_index) * ga->nbytes_elem);
-   uint8_t * last_elem  = ga->data + ((last_index  - node_first_index) * ga->nbytes_elem);
+   uint8_t * last_elem  = ga->data + ((last_index  - node_first_index - 1) * ga->nbytes_elem);
 
    if ( ! comp((uint64_t *) first_elem, keyRow) ) {           // IF key <= first element
 
@@ -106,16 +106,16 @@ template <typename Comparator>
 uint64_t upperbound(uint64_t * keyRow, gmt_data_t data, Comparator comp, uint64_t lb, uint64_t ub) {
    gentry_t * ga  = mem_get_gentry(data);
    uint64_t node_first_index = ga->goffset_bytes / ga->nbytes_elem;
-   uint64_t node_last_index  = (ga->goffset_bytes + ga->nbytes_loc - ga->nbytes_elem) / ga->nbytes_elem;
+   uint64_t node_last_index  = (ga->goffset_bytes + ga->nbytes_loc) / ga->nbytes_elem;
 
    // search bounds do not overlap my index set
-   if ((ub < node_first_index) || (lb > node_last_index)) return ULLONG_MAX;
+   if ((ub < node_first_index) || (lb >= node_last_index)) return ULLONG_MAX;
 
    uint64_t first_index = MAX(node_first_index, lb);
    uint64_t last_index  = MIN(node_last_index,  ub);
    uint64_t num_elems   = last_index - first_index;
    uint8_t * first_elem = ga->data + ((first_index - node_first_index) * ga->nbytes_elem);
-   uint8_t * last_elem  = ga->data + ((last_index  - node_first_index) * ga->nbytes_elem);
+   uint8_t * last_elem  = ga->data + ((last_index  - node_first_index - 1) * ga->nbytes_elem);
 
    if ( comp(keyRow, (uint64_t *) first_elem) ) {           // IF key < first element
 
@@ -149,89 +149,70 @@ uint64_t upperbound(uint64_t * keyRow, gmt_data_t data, Comparator comp, uint64_
 
 /********** SORT **********/
 template <typename Comparator >
-void corank_sorted(const uint64_t index, uint64_t * corank, uint64_t num_bytes,
-                   gmt_data_t left,  const uint64_t leftoffset,  const uint64_t leftsize,
-                   gmt_data_t right, const uint64_t rightoffset, const uint64_t rightsize, Comparator comp) {
-  uint64_t delta;
-  uint64_t j    = MIN(index, leftsize);
-  uint64_t jlow = (index <= rightsize) ? 0 : index - rightsize;
-  uint64_t k    = index - j;
-  uint64_t klow = ULLONG_MAX;
+void merge_block_section(uint64_t id, uint64_t num_coworkers, uint64_t num_bytes, uint64_t start,
+      uint64_t mid, uint64_t end, gmt_data_t outdata, gmt_data_t indata, uint64_t * columns, Comparator comp) {
 
-  uint64_t * fromleft  = (uint64_t *) malloc(num_bytes);
-  uint64_t * fromright = (uint64_t *) malloc(num_bytes);
+  std::vector <uint64_t> X(num_bytes / sizeof(uint64_t));
+  std::vector <uint64_t> Y(num_bytes / sizeof(uint64_t));
+  uint64_t blocksize_left  = CEILING(mid - start, num_coworkers);
+  uint64_t blocksize_right = CEILING(end - mid, num_coworkers);
 
-  for ( ; ;) {
-    if (j > 0 && k < rightsize) {
-       gmt_get(left,  leftoffset + j - 1, (void *) fromleft,  1);
-       gmt_get(right, rightoffset + k,    (void *) fromright, 1);
+  uint64_t left_start  = start + blocksize_left  * id;              // start of LHS
+  uint64_t right_start = mid   + blocksize_right * id;              // start of RHS block;
+  uint64_t left_end  = MIN(left_start  + blocksize_left,  mid);     // end   of LHS
+  uint64_t right_end = MIN(right_start + blocksize_right, end);     // end   of RHS block;
 
-       if ( comp(fromright, fromleft) ) {
-          delta = CEILING(j - jlow, 2);
-          klow = k;
-          j   -= delta;
-          k   += delta;
-          continue;
-    }   }
-
-    if (k > 0 && j < leftsize) {
-       gmt_get(left,  leftoffset + j,      (void *) fromleft,  1);
-       gmt_get(right, rightoffset + k - 1, (void *) fromright, 1);
-
-       if ( ! comp(fromright, fromleft) ) {
-          delta = CEILING(k - klow, 2);
-          jlow  = j;
-          j    += delta;
-          k    -= delta;
-          continue;
-    }   }
-
-    break;
+  // if left_start points into a sequence of equal elements, move to end of sequence
+  if (left_start > start) {
+     gmt_get(indata, left_start - 1, (void *) X.data(), 1);
+     gmt_get(indata, left_start,     (void *) Y.data(), 1);
+     if (! comp(X.data(), Y.data())) left_start = gmt_upper_bound_limit(Y, indata, columns, left_start, mid);
   }
 
-  corank[0] = j;
-  corank[1] = k;
-  free(fromleft);
-  free(fromright);
-}
+  // if left_end points into a sequence of equal elements, move to end of sequence
+  if (left_end < mid) {
+     gmt_get(indata, left_end - 1, (void *) X.data(), 1);
+     gmt_get(indata, left_end    , (void *) Y.data(), 1);
+     if (! comp(X.data(), Y.data())) left_end = gmt_upper_bound_limit(Y, indata, columns, left_end - 1, mid);
+  }
 
+  // set right_start to first element > element before left_start
+  if (right_start != mid) {
+     gmt_get(indata, left_start - 1, (void *) X.data(), 1);
+     right_start = gmt_upper_bound_limit(X, indata, columns, mid, end);
+  }
 
-template <typename Comparator >
-void merge_block_section(uint64_t id, uint64_t num_coworkers, uint64_t num_bytes,
-      uint64_t start, uint64_t mid, uint64_t end, gmt_data_t outdata, gmt_data_t indata, Comparator comp) {
+  // set right_end to first element > element before left_end
+  if (right_end != end) {
+     gmt_get(indata, left_end - 1, (void *) Y.data(), 1);
+     right_end = gmt_upper_bound_limit(Y, indata, columns, right_start, end);
+  }
 
-  uint64_t i[2], lower[2], upper[2];
-  i[0] = id       * (end - start) / num_coworkers;
-  i[1] = (id + 1) * (end - start) / num_coworkers;
+  uint64_t leftsize  = left_end  - left_start;
+  uint64_t rightsize = right_end - right_start;
 
-  corank_sorted(i[0], lower, num_bytes, indata, start, mid - start, indata, mid, end - mid, comp);
-  corank_sorted(i[1], upper, num_bytes, indata, start, mid - start, indata, mid, end - mid, comp);
+  uint64_t num_elems = leftsize + rightsize;
+  uint64_t outdata_start = left_start + (right_start - mid);
 
-  uint64_t leftsize    = upper[0] - lower[0];
-  uint64_t rightsize   = upper[1] - lower[1];
-
-  uint64_t start_left  = start + lower[0];
-  uint64_t end_left    = start_left + leftsize;
-  uint64_t start_right = mid + lower[1];
-  uint64_t end_right   = start_right + rightsize;
+  uint64_t left_index = left_start;
+  uint64_t right_index = right_start;
 
 // if one side is empty, copy the other side and return
-  if      (rightsize == 0) {gmt_memcpy(indata, start_left,  outdata, start + i[0], leftsize);  return; }
-  else if (leftsize  == 0) {gmt_memcpy(indata, start_right, outdata, start + i[0], rightsize); return; }
+  if      (rightsize == 0) {gmt_memcpy(indata, left_start,  outdata, outdata_start, leftsize);  return; }
+  else if (leftsize  == 0) {gmt_memcpy(indata, right_start, outdata, outdata_start, rightsize); return; }
 
 // get left and right side
-  uint64_t num_elems = leftsize + rightsize;
   uint8_t * buffer_in = (uint8_t *) malloc(num_elems * num_bytes);
   uint8_t * buffer_out = (uint8_t *) malloc(num_elems * num_bytes);
 
-  uint8_t * outPtr = buffer_out;
-  uint8_t * leftPtr = buffer_in;
-  uint8_t * leftEnd = leftPtr + leftsize * num_bytes;
+  uint8_t * outPtr   = buffer_out;
+  uint8_t * leftPtr  = buffer_in;
+  uint8_t * leftEnd  = leftPtr + leftsize * num_bytes;
   uint8_t * rightPtr = leftEnd;
   uint8_t * rightEnd = rightPtr + rightsize * num_bytes;
 
-  gmt_get(indata, start_left, (void *) leftPtr, leftsize);
-  gmt_get(indata, start_right, (void *) rightPtr, rightsize);
+  gmt_get(indata, left_start, (void *) leftPtr, leftsize);
+  gmt_get(indata, right_start, (void *) rightPtr, rightsize);
 
 // merge left and right side
   while ( (leftPtr < leftEnd) || (rightPtr < rightEnd) ) {
@@ -239,17 +220,20 @@ void merge_block_section(uint64_t id, uint64_t num_coworkers, uint64_t num_bytes
         memcpy(outPtr, rightPtr, (rightEnd - rightPtr));
         rightPtr = rightEnd;
      } else if (rightPtr == rightEnd) {
+        memcpy(outPtr, rightPtr, (rightEnd - rightPtr));
         memcpy(outPtr, leftPtr, (leftEnd - leftPtr));
         leftPtr = leftEnd;
      } else if ( comp((uint64_t *) leftPtr, (uint64_t *) rightPtr) ) {
         memcpy(outPtr, leftPtr, num_bytes);
         outPtr += num_bytes; leftPtr += num_bytes;
+        left_index ++;
      } else {
         memcpy(outPtr, rightPtr, num_bytes);
         outPtr += num_bytes; rightPtr += num_bytes;
+        right_index ++;
   }  }
 
-  gmt_put(outdata, start + i[0], (void *) buffer_out, num_elems);
+  gmt_put(outdata, outdata_start, (void *) buffer_out, num_elems);
 
   free(buffer_in);
   free(buffer_out);

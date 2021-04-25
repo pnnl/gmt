@@ -646,7 +646,7 @@ INLINE void mem_locate_gmt_data_remote(gentry_t * ga,
 
     /* in this routine we are already sure rnode is not node_id, if this happens 
      * then we have a problem */
-    _assert(_rnode_id != node_id);
+    // _assert(_rnode_id != node_id);
     *rnid = _rnode_id;
     if (roffset_bytes != NULL)
         *roffset_bytes = _roffset_bytes;

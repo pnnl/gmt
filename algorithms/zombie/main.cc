@@ -64,7 +64,7 @@ int gmt_main (uint64_t argc, char * argv[]) {
   memcpy(eventArgs.columns, __cols01, SORT_COLS * sizeof(uint64_t));     // sort by event id and log host
 
   gmt_execute_on_node_with_handle(0, readTableFiles, & eventArgs,
-    sizeof(RF_args_t), & eventReturn, & eventReturnSize, GMT_PREEMPTABLE, handle);
+      sizeof(RF_args_t), & eventReturn, & eventReturnSize, GMT_PREEMPTABLE, handle);
 
   gmt_wait_handle(handle);       // wait for all reads to complete
   printf("Time to read files = %lf\n", my_timer() - time1);
@@ -123,11 +123,11 @@ int gmt_main (uint64_t argc, char * argv[]) {
 
   BFS_Setup(graph);
 
-  checkSort("Netflow", Netflow.data, __cols01);
-  checkSort("Events", Events.data, __cols01);
-  checkSort("Boots", Boots.data, __cols01);
-  checkSort("Servers", Servers.data, __cols0);
-  checkSort("Processes", Processes.data, __cols01);
+  // checkSort("Netflow", Netflow.data, __cols01);
+  // checkSort("Events", Events.data, __cols01);
+  // checkSort("Boots", Boots.data, __cols01);
+  // checkSort("Servers", Servers.data, __cols0);
+  // checkSort("Processes", Processes.data, __cols01);
   // printTable(100, "Netflow", Netflow);
   // printTable(100, "Events", Events);
   // printTable(100, "Servers", Servers);
