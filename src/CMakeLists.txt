@@ -11,5 +11,8 @@ include_directories(${THREADS_PTHREADS_INCLUDE_DIR})
 
 add_library(gmt ${sources})
 set_target_properties(gmt PROPERTIES LINKER_LANGUAGE CXX)
+if (CLANG_TIDY_EXE)
+  set_target_properties(gmt PROPERTIES CXX_CLANG_TIDY "${DO_CLANG_TIDY}")
+endif()
 target_link_libraries(gmt ${MPI_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 install(TARGETS gmt DESTINATION lib)

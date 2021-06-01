@@ -19,6 +19,12 @@ if (POLICY CMP0048)
   set(cmake_3_0_LANGUAGES LANGUAGES)
 endif()
 
+# Add path for custom CMake modules
+set(CMAKE_MODULE_PATH
+  ${CMAKE_MODULE_PATH}
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake"
+  )
+
 if (NOT PACKAGE_VERSION)
   set(PACKAGE_VERSION
     "${GMT_VERSION_MAJOR}.${GMT_VERSION_MINOR}.${GMT_VERSION_PATCH}")
@@ -51,6 +57,9 @@ if (CMAKE_BUILD_TYPE AND
 endif()
 
 
+include(config)
+
+set(GMT_BINARY_DIR       ${CMAKE_CURRENT_BINARY_DIR})
 set(GMT_MAIN_SRC_DIR     ${CMAKE_CURRENT_SOURCE_DIR})
 set(GMT_MAIN_INCLUDE_DIR ${GMT_MAIN_SRC_DIR}/include)
 set(GMT_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/include)
@@ -84,3 +93,20 @@ install(DIRECTORY ${GMT_MAIN_INCLUDE_DIR}/gmt
   PATTERN "*~" EXCLUDE
   PATTERN "CMakeLists.txt"
 )
+
+# Adding clang-format target if executable is found
+if(CLANG_FORMAT_EXE)
+  # Additional targets to perform clang-format/clang-tidy
+  # Get all project files
+  file(GLOB_RECURSE
+    ALL_CXX_SOURCE_FILES
+    *.[chi]pp *.[chi]xx *.cc *.hh *.ii *.[CHI] *.[ch]
+    )
+
+  add_custom_target(
+    clang-format
+    COMMAND ${CLANG_FORMAT_EXE}
+    -i
+    ${ALL_CXX_SOURCE_FILES}
+    )
+endif()
