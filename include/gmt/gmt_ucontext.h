@@ -37,8 +37,7 @@
 
 #include "gmt/config.h"
 
-#if  !ENABLE_GMT_UCONTEXTS
-        
+#if  !GMT_ENABLE_UCONTEXT
 /* use libc ucontext primitives */
 #include <signal.h>
 #include <stdio.h>

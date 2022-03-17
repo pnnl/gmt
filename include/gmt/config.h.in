@@ -74,9 +74,12 @@
 /* trace allocation stats */
 #define TRACE_ALLOC                  0
 
+#cmakedefine01 GMT_X86_TARGET
+#cmakedefine01 GMT_RISCV_TARGET
+
 /* enable gmt_ucontext and disable libc ucontext (slower) */
 #ifdef __linux__
-#define ENABLE_GMT_UCONTEXTS         1
+#cmakedefine01 GMT_ENABLE_UCONTEXT
 #endif
 
 /* enable uthread stacks that expand as more stack is used from

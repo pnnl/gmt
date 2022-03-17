@@ -36,19 +36,11 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include "gmt/util.h"
 
 #define CPU_FREQ 2900000
 
-inline unsigned long long rdtsc(void)
-{
-  unsigned hi, lo;
-  __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
-  return ( (unsigned long long)lo)|( ((unsigned long long)hi)<<32 );
-}
-
-
 int main(){
-
   int num = 100;
   size_t size = 256*1024;
   int i;

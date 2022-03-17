@@ -34,7 +34,7 @@
 
 #include "gmt/gmt_ucontext.h"
 
-#if ENABLE_GMT_UCONTEXTS
+#if GMT_ENABLE_UCONTEXT
 
 void gmt_setcontext(const ucontext_t *ucp) {
   __asm__ __volatile__(
@@ -125,7 +125,6 @@ void gmt_swapcontext(ucontext_t *oucp, const ucontext_t *ucp) {
       "mov    %%rcx, " XSTR(oRSP) " ( %0 )\n"
       "fstenv  " XSTR(oFPREGSMEM) "( %0 )\n"
       "stmxcsr " XSTR(oMXCSR) " ( %0 )\n"
-                         
       "ldmxcsr " XSTR(oMXCSR) " ( %1 )\n"
       "fldenv  " XSTR(oFPREGSMEM) "( %1 )\n"
       "mov    " XSTR(oRSP) " ( %1 ), %%rsp\n"
@@ -234,7 +233,11 @@ void gmt_makecontext(ucontext_t *ucp, void (*func)(void), int argc, ...) {
 void gmt_init_ctxt(ucontext_t *cntxt, void *stack, int stack_size,
                    ucontext_t *ret_cntxt) {
   gmt_getcontext(cntxt);
+#if GMT_ENABLE_UCONTEXT
   cntxt->uc_flags = 0;
+#else
+  cntxt->__uc_flags = 0;
+#endif
   cntxt->uc_link = ret_cntxt;
   cntxt->uc_stack.ss_sp = stack;
   cntxt->uc_stack.ss_size = stack_size;

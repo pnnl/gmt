@@ -1,6 +1,6 @@
 # See README.md for instruction on how to build GMT with CMake
 
-cmake_minimum_required(VERSION 2.8.12)
+cmake_minimum_required(VERSION 3.3.0)
 
 if (NOT DEFINED GMT_VERSION_MAJOR)
   set(GMT_VERSION_MAJOR 2)
@@ -42,6 +42,22 @@ This process created the file `CMakeCache.txt' and the directory `CMakeFiles'.
 Please delete them.")
 endif()
 
+# Target Architecture:
+set(GMT_TARGET_ARCH "X86" CACHE STRING "The target architecture chosen at configure time")
+set(GMT_SUPPORTED_ARCHS "X86;RISCV" CACHE INTERNAL
+    "List of supported target architectures")
+set_property(CACHE GMT_TARGET_ARCH PROPERTY STRINGS ${GMT_SUPPORTED_ARCHS})
+message(STATUS "Compiling GMT for the ${GMT_TARGET_ARCH} architecture.")
+if (NOT ${GMT_TARGET_ARCH} IN_LIST GMT_SUPPORTED_ARCHS)
+   message(FATAL_ERROR "Architecture not currently supported")
+endif()
+
+option(GMT_ENABLE_UCONTEXT "Enable/Disable the use of GMT ucontext" ON)
+if ((NOT ${GMT_TARGET_ARCH} STREQUAL "X86") AND ${GMT_ENABLE_UCONTEXT})
+   message(WARNING "GMT ucontexts are available only for the X86 target. Switching them off.")
+   set(GMT_ENABLE_UCONTEXT OFF)
+endif()
+set("GMT_${GMT_TARGET_ARCH}_TARGET" ON)
 
 string(TOUPPER "${CMAKE_BUILD_TYPE}" uppercase_CMAKE_BUILD_TYPE)
 

@@ -57,6 +57,8 @@
 #include <string.h>
 #include <errno.h>
 
+#include "gmt/config.h"
+
 
 #define ntohll(x) (((int64_t)(ntohl((int32_t)(((x) << 32) >> 32))) << 32) | \
                            (uint32_t)ntohl(((int32_t)((x) >> 32))))
@@ -117,16 +119,30 @@ extern uint64_t _total_malloc;
 UTIL_INLINE unsigned long long rdtsc(void) __attribute__((no_instrument_function));
 UTIL_INLINE unsigned long long rdtsc(void)
 {
-    unsigned hi, lo;
-    __asm__ __volatile__("rdtsc":"=a"(lo), "=d"(hi));
-    return ((unsigned long long)lo) | (((unsigned long long)hi) << 32);
+#if GMT_X86_TARGET
+  unsigned hi, lo;
+  __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
+  return ((unsigned long long)lo) | (((unsigned long long)hi) << 32);
+#elif GMT_RISCV_TARGET
+  uint64_t cycles;
+  __asm__ __volatile__("rdcycle %0" : "=r" (cycles));
+  return cycles;
+#else
+#error "Architecture not supported"
+#endif
 }
 
 UTIL_INLINE void *arch_get_sp() __attribute__((no_instrument_function));
 UTIL_INLINE void *arch_get_sp()
 {
     void *ret;
- __asm("movq %%rsp,%0 ":"=r"(ret));
+#if GMT_X86_TARGET
+    __asm("movq %%rsp,%0 ":"=r"(ret));
+#elif GMT_RISCV_TARGET
+    __asm("mv %0, sp" : "=r"(ret));
+#else
+#error "Architecture not supported"
+#endif
     return ret;
 }
 
