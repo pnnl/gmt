@@ -106,7 +106,7 @@ void worker_exit();
 #if defined(__cplusplus)
 extern "C" {
 #endif
-  void worker_task_wrapper(uint32_t taskid_L32, uint32_t taskid_H32);
+    void worker_task_wrapper(uint32_t taskid_L32, uint32_t taskid_H32, uint32_t tidx);
 #if defined(__cplusplus)
 }
 #endif
@@ -124,7 +124,7 @@ INLINE void worker_push_task(uint32_t wid, mtask_t * mt, uint64_t start_it)
   if (config.release_uthread_stack)
     uthread_set_stack(ut->tid, UTHREAD_INITIAL_STACK_SIZE);
 #endif
-  uthread_makecontext(&ut->ucontext, (void *)worker_task_wrapper, start_it);
+  uthread_makecontext(&ut->ucontext, (void *)worker_task_wrapper, start_it, ut->tid);
   ut->mt = mt;
 
   uint32_t i;
@@ -182,7 +182,7 @@ INLINE void worker_self_execute(uint32_t tid, uint32_t wid)
     /* execute locally */
     uint32_t start_it_L32 = start_it & ((1l << 32) - 1);
     uint32_t start_it_H32 = (start_it >> 32) & ((1l << 32) - 1);
-    worker_task_wrapper(start_it_L32, start_it_H32);
+    worker_task_wrapper(start_it_L32, start_it_H32, tid);
 
     /* decrease nesting level */
     uthread_dec_nesting(tid);

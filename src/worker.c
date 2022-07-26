@@ -305,11 +305,11 @@ void worker_team_destroy()
 
 extern int realRet;
 
-void worker_task_wrapper(uint32_t start_it_L32, uint32_t start_it_H32)
+void worker_task_wrapper(uint32_t start_it_L32, uint32_t start_it_H32, uint32_t tidx)
 {
     uint64_t start_it = (uint64_t) FROM_32_TO_64(start_it_L32, start_it_H32);
     /* get uthread and mark the task as RUNNING */
-    uthread_t *ut = &uthreads[uthread_get_tid()];
+    uthread_t *ut = &uthreads[tidx];
     ut->tstatus = TASK_RUNNING;
     _assert(ut->wid == get_thread_id());
     _assert(ut->mt != NULL);
