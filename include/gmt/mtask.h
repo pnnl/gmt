@@ -84,14 +84,6 @@ typedef enum {
 
 //TODO make this packed and use bit-fields
 typedef struct PACKED_STR {
-    // We pass the address of this element to an atomic operation. Since
-    // the address alignment is crucial, let us not put it behind bitfields
-    // and misc sized elements.
-    // If this location change is unacceptable, we could use an aligned, dummy
-    // struct that only holds the element in question. For now, moving the
-    // element is the minimal change to fix the GMT issue on RISCV systems.
-    uint64_t executed_it;
-
     /* information for the number of the number of iterations to start */
     uint64_t end_it:ITER_BITS __align(CACHE_LINE);
     uint64_t start_it:ITER_BITS;
@@ -127,6 +119,10 @@ typedef struct PACKED_STR {
     gmt_data_t gmt_array;
     /* this is at the bottom of this structure so we don't interfere with
      *other information above when doing fetch and add */
+    // Since we use the address of this element to an atomic operation let's
+    // ensure the address alignment is deterministic.
+    uint64_t executed_it __attribute__((aligned(8)));
+
 
 #if DTA
     uint32_t allocator_id;
