@@ -234,7 +234,7 @@ INLINE void uthread_incr_terminated_mtasks(uint32_t tid, uint32_t nl)
 }
 
 INLINE void uthread_makecontext(ucontext_t * ucp,
-                                void *wrapper, uint64_t taskid, uint32_t tidx)
+                                void *wrapper, uint64_t taskid)
 {
     /* To maintain compatibility with the libc version of make context
        we split 64 bit value in two 32 bits variables (Low and High) and
@@ -243,7 +243,7 @@ INLINE void uthread_makecontext(ucontext_t * ucp,
     uint32_t taskid_H32 = (uint32_t) ((uint64_t) (taskid) >> 32);
     uint32_t taskid_L32 = (uint32_t) ((uint64_t) (taskid) & 0xffffffffUL);
 
-    gmt_makecontext(ucp, (void (*)())wrapper, 3, taskid_L32, taskid_H32, tidx);
+    gmt_makecontext(ucp, (void (*)())wrapper, 2, taskid_L32, taskid_H32);
 }
 
 #endif

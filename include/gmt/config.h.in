@@ -84,7 +84,9 @@
 
 /* enable uthread stacks that expand as more stack is used from
  *UTHREAD_INITIAL_STACK_SIZE up to UTHREAD_MAX_STACK_SIZE */
-#define ENABLE_EXPANDABLE_STACKS     0
+#ifdef __linux__
+#cmakedefine01 ENABLE_EXPANDABLE_STACKS
+#endif
 
 /* these below could be exposed in gmt_config and also configurable by command 
  * line */
