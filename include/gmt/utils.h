@@ -139,7 +139,7 @@ UTIL_INLINE void *arch_get_sp()
 #if GMT_X86_TARGET
     __asm("movq %%rsp,%0 ":"=r"(ret));
 #elif GMT_RISCV_TARGET
-    __asm("mv %0, sp" : "=r"(ret));
+    __asm__ __volatile__("mv %0, sp" : "=r"(ret));
 #else
 #error "Architecture not supported"
 #endif

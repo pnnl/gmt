@@ -119,7 +119,10 @@ typedef struct PACKED_STR {
     gmt_data_t gmt_array;
     /* this is at the bottom of this structure so we don't interfere with
      *other information above when doing fetch and add */
-    uint64_t executed_it;
+    // Since we use the address of this element to an atomic operation let's
+    // ensure the address alignment is deterministic.
+    uint64_t executed_it __attribute__((aligned(8)));
+
 
 #if DTA
     uint32_t allocator_id;
