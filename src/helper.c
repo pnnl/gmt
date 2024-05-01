@@ -37,6 +37,7 @@
 #include <stdbool.h>
 #include "gmt/helper.h"
 #include "gmt/worker.h"
+
 #if DTA
 #include "gmt/dta.h"
 #endif
@@ -875,12 +876,15 @@ void *helper_loop(void *arg)
 
   if (config.thread_pinning) {
     uint32_t thread_id = get_thread_id();
-    uint32_t core = select_core(thread_id, config.num_cores,
-        config.stride_pinning);
-    pin_thread(core);
-    if (node_id == 0) {
-      DEBUG0(printf("pining CPU %u with pthread_id %u\n",
-            core, thread_id););
+
+    if(config.affinity_policy_id == LEGACY_PIN_POLICY){
+      uint32_t core = select_core(thread_id, config.num_cores, config.stride_pinning);
+      pin_thread(core);
+      if (node_id == 0) {
+        DEBUG0(printf("pining CPU %u with pthread_id %u\n", core, thread_id););
+      }
+    }else{
+      set_thread_affinity(thread_id);
     }
   }
 

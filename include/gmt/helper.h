@@ -45,6 +45,7 @@
 #include "gmt/profiling.h"
 #include "gmt/timing.h"
 #include "gmt/uthread.h"
+#include "gmt/thread_affinity.h"
 
 #if NO_RESERVE
 #include <queue>
