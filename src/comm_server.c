@@ -1,7 +1,7 @@
 /*
  * Global Memory and Threading (GMT)
  *
- * Copyright © 2018, Battelle Memorial Institute
+ * Copyright © 2024, Battelle Memorial Institute
  * All rights reserved.
  *
  * Battelle Memorial Institute (hereinafter Battelle) hereby grants permission to
@@ -35,6 +35,7 @@
 #include "gmt/comm_server.h"
 #include "gmt/profiling.h"
 #include "gmt/aggregation.h"
+
 #include <execinfo.h>
 #include <sys/mman.h>
 
@@ -179,11 +180,14 @@ void *comm_server_loop(void *arg)
 {
     _unused(arg);
     if (config.thread_pinning) {
-      pin_thread(config.num_cores - 1);
-      if (node_id == 0) {
-        DEBUG0(printf("pining CPU %u with pthread_id %u\n",
-              config.num_cores - 1, get_thread_id()););
-      }
+        if(config.affinity_policy_id == LEGACY_PIN_POLICY){
+            pin_thread(config.num_cores - 1);
+            if (node_id == 0) {
+                DEBUG0(printf("pining CPU %u with pthread_id %u\n", config.num_cores - 1, get_thread_id()););
+            }
+        }else{
+            comm_server_set_thread_affinity();
+        }
     }
     network_barrier();
     while (!cs.init_done) ;
@@ -214,15 +218,15 @@ void comm_server_run()
     pthread_attr_t attr;
     pthread_attr_init(&attr);
     /* set stack address for this worker */
-    void *stack_addr =
-        (void *)((uint64_t)pt_stacks + (NUM_WORKERS + NUM_HELPERS) * PTHREAD_STACK_SIZE);
+    void *stack_addr = (void *)((uint64_t)pt_stacks + (NUM_WORKERS + NUM_HELPERS) * PTHREAD_STACK_SIZE);
 
     int ret = pthread_attr_setstack(&attr, stack_addr, PTHREAD_STACK_SIZE);
     if (ret)
         perror("FAILED TO SET STACK PROPERTIES"), exit(EXIT_FAILURE);
 
-    ret =
-        pthread_create(&cs.pthread, &attr, &comm_server_loop, NULL);
+    ret = pthread_create(&cs.pthread, &attr, &comm_server_loop, NULL);
+
+    
     if (ret)
         perror("FAILED TO CREATE COMM SERVER"), exit(EXIT_FAILURE);
 }
