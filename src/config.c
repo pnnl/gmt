@@ -1,7 +1,7 @@
 /*
  * Global Memory and Threading (GMT)
  *
- * Copyright © 2018, Battelle Memorial Institute
+ * Copyright © 2024, Battelle Memorial Institute
  * All rights reserved.
  *
  * Battelle Memorial Institute (hereinafter Battelle) hereby grants permission to
@@ -53,31 +53,40 @@ int gmt_get_comm_buffer_size()
 
 void config_init()
 {
+    explore_architecture();     // explore the system architecture (e.g., processor layout and locality of the network interface)
+
     config.comm_buffer_size = 256 * 1024;
     config.num_cmd_blocks = 128;
     config.cmd_block_size = 4096;
     config.num_buffs_per_channel = 64;
-    config.num_cores = get_num_cores();
+
+    config.num_cores = get_num_cores_hwloc();
+
 #if ENABLE_SINGLE_NODE_ONLY
     config.num_workers = config.num_cores;
     config.num_helpers = 0;
 #elif !DTA
-    config.num_workers = MAX(1,(config.num_cores-1)/2);
-    config.num_helpers = MAX(1,(config.num_cores-1)/2);
+    config.num_workers = MAX(1,(config.num_cores-1)/2); // half workers
+    config.num_helpers = MAX(1,(config.num_cores-1)/2); // half helpers
 #else
-    config.num_workers = config.num_cores - 1;
+    // config.num_workers = config.num_cores - 1;
+    config.num_workers = config.num_cores - 2; // 1 for the helper and 1 for the communicator
     config.num_helpers = 1;
 #endif
+
     config.num_uthreads_per_worker = 1024;
     config.max_nesting = 2;
     config.mtasks_per_queue = 1 << 20;
-    config.num_mtasks_queues = MAX(2,config.num_workers/2);    
+    config.num_mtasks_queues = MAX(2,config.num_workers/2);  // depends on the num_workers
+
 #if !DTA
     config.mtasks_res_block_loc = 32;
 #endif
+
 #if !NO_RESERVE
     config.mtasks_res_block_rem = 1024;
 #endif
+
     config.limit_parallelism = false;
     config.thread_pinning = false;
     config.release_uthread_stack = false;
@@ -86,11 +95,13 @@ void config_init()
     config.print_sched_interv = 0;
     config.cmdb_check_interv = 100000;
     config.node_agg_check_interv = 2000000;
+
 #if DTA
 	config.dta_chunk_size = 1024;
 	config.dta_prealloc_worker_chunks = 32;
 	config.dta_prealloc_helper_chunks = 256;
 #endif
+
     config.enable_usr_signal = false;
     config.state_name[0] = '\0';
     config.state_populate = 0;
@@ -101,6 +112,9 @@ void config_init()
     config.handle_check_interv = 1024;
     config.mtask_check_interv = 100000;
     config.stride_pinning = 1;
+
+    config.affinity_policy_name[0] = '\0';
+    config.affinity_policy_id = NO_SMT_POLICY; // default affinity policy to be applied
 }
 
 #define OPT_INT    0
@@ -289,6 +303,9 @@ options_t options[] = {
      {.bvalue = true}, true,
      "enable to receive \"/bin/kill -s USR1 pid\", a .gmt-pid-hostname file "
      "is created (utility sig_send.sh can send to all hostname and pids) "},
+
+    {"--gmt_affinity_policy", OPT_STRING, true, &config.affinity_policy_name, {NULL}, true,
+     "Selects the affinity policy to be used if --gmt_thread_pinning is specified (otherwise not valid)"},
 };
 
 void config_print()
@@ -447,7 +464,6 @@ int config_parse(int argc, char *argv[])
         //printf("%d - checking:%s\n", i,argv[i]);
         bool match = false;
         for (j = 0; j < (int)(sizeof(options) / sizeof(options_t)); j++) {
-
             if (strcmp(argv[i], options[j].name) == 0) {
                 //printf("%d - match:%s\n", i, argv[i]);
                 i++;
@@ -505,6 +521,7 @@ int config_parse(int argc, char *argv[])
                 match = true;
                 break;
             }
+
         }
 
         if (!match && i < argc)
@@ -512,8 +529,20 @@ int config_parse(int argc, char *argv[])
     }
     for (i = 0; i < cnt; i++)
         argv[i] = nargv[i];
-
     free(nargv);
+
+    // parse config.affinity_policy_name and populate config.affinity_policy_id accordingly
+    if(strcmp(config.affinity_policy_name, "LEGACY_PIN") == 0){
+        config.affinity_policy_id = LEGACY_PIN_POLICY;
+    }else if(strcmp(config.affinity_policy_name, "NO_SMT") == 0){
+        config.affinity_policy_id = NO_SMT_POLICY;
+    }else if(strcmp(config.affinity_policy_name, "PIN") == 0){
+        config.affinity_policy_id = PIN_POLICY;
+    }else{
+        printf("Failed to parse affinity policy (either LEGACY_PIN, NO_SMT, PIN)\n");
+        exit(-1);
+    }
+
     return cnt;
 }
 

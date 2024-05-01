@@ -1,7 +1,7 @@
 /*
  * Global Memory and Threading (GMT)
  *
- * Copyright © 2018, Battelle Memorial Institute
+ * Copyright © 2024, Battelle Memorial Institute
  * All rights reserved.
  *
  * Battelle Memorial Institute (hereinafter Battelle) hereby grants permission to
@@ -37,18 +37,22 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+
 #ifdef __linux__
 #include <linux/limits.h>
 #else
 #define PATH_MAX 1024
 #endif
+
 #include "gmt/gmt_config.h"
+#include "gmt/thread_affinity.h"
 
 /* configuration options provided by CMake */
-#define BUILD_VERSION    "@PACKAGE_VERSION@"
-#define COMPILER_NAME    "@CMAKE_C_COMPILER_ID@"
-#define COMPILER_VERSION "@CMAKE_C_COMPILER_VERSION@"
-#define CFLAGS           "@CMAKE_C_FLAGS@"
+#define BUILD_VERSION           "@PACKAGE_VERSION@"
+#define COMPILER_NAME           "@CMAKE_C_COMPILER_ID@"
+#define COMPILER_VERSION        "@CMAKE_C_COMPILER_VERSION@"
+#define CFLAGS                  "@CMAKE_C_FLAGS@"
+
 
 /* compile time options, they change the structure of the code and 
  * can't be exposed dynamically */
@@ -163,8 +167,10 @@ typedef struct config_t {
     int state_populate;
     int state_prot;
     char disk_path[PATH_MAX];
-    char ssd_path[PATH_MAX];   
-    
+    char ssd_path[PATH_MAX];
+
+    char affinity_policy_name[10];
+    uint32_t affinity_policy_id;
 } config_t;
 
 extern config_t config;
