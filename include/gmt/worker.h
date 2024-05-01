@@ -1,7 +1,7 @@
 /*
  * Global Memory and Threading (GMT)
  *
- * Copyright © 2018, Battelle Memorial Institute
+ * Copyright © 2024, Battelle Memorial Institute
  * All rights reserved.
  *
  * Battelle Memorial Institute (hereinafter Battelle) hereby grants permission to
@@ -47,6 +47,7 @@
 #include "gmt/aggregation.h"
 #include "gmt/gmt_ucontext.h"
 #include "gmt/uthread.h"
+#include "gmt/thread_affinity.h"
 #if DTA
 #include "gmt/dta.h"
 #endif

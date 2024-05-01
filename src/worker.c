@@ -47,6 +47,7 @@
 #include "gmt/dta.h"
 #endif
 
+
 /* gmt_main arguments */
 extern uint8_t *gm_args;
 extern uint32_t gm_argc;
@@ -181,12 +182,14 @@ void *worker_loop(void *args)
 
     /* thread pinning if enabled */
     if (config.thread_pinning) {
-        uint32_t core = select_core(thread_id, config.num_cores,
-                                    config.stride_pinning);
-        pin_thread(core);
-        if (node_id == 0) {
-            DEBUG0(printf("pining CPU %u with pthread_id %u\n",
-                  core, thread_id););
+        if(config.affinity_policy_id == LEGACY_PIN_POLICY){
+            uint32_t core = select_core(thread_id, config.num_cores, config.stride_pinning);
+            pin_thread(core);
+            if (node_id == 0) {
+                DEBUG0(printf("N_%d) pining core %u with pthread_id %u\n", node_id, core, thread_id););
+            }
+        }else{
+            set_thread_affinity(thread_id);
         }
     }
 
