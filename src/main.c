@@ -1,7 +1,7 @@
 /*
  * Global Memory and Threading (GMT)
  *
- * Copyright © 2018, Battelle Memorial Institute
+ * Copyright © 2024, Battelle Memorial Institute
  * All rights reserved.
  *
  * Battelle Memorial Institute (hereinafter Battelle) hereby grants permission to
@@ -100,20 +100,26 @@ uint64_t pt_stacks_size = 0;
 
 int main(int argc, char *argv[])
 {
-    /* initialize configuration to default paramters */
-    config_init();
     prog_name = argv[0];
 #if !(ENABLE_SINGLE_NODE_ONLY)
     network_init(&argc, &argv);
 #endif
 
-    if ((argc = config_parse(argc, argv)) == -1) {
+    /* initialize configuration to default parameters */
+    config_init();
+
+    if ((argc = config_parse(argc, argv)) == -1) { // parse cmd line configuration
         if (node_id == 0)
             config_help();
 #if !(ENABLE_SINGLE_NODE_ONLY)
         network_finalize();
 #endif
         exit(EXIT_SUCCESS);
+    }
+
+    // if thread pinning is enabled with the NON-default policies --> initialize the necessary data structures
+    if(config.thread_pinning && config.affinity_policy_id != LEGACY_PIN_POLICY){
+        affinity_masks_init();        // prepare the cpu masks for each Pthread according to the selected affinity policy
     }
 
     /* check configuration to see if everything is consistent, then print it */
@@ -140,7 +146,7 @@ int main(int argc, char *argv[])
 
     /* initialize profile and timing in case we compiled for it */
     timing_init();
-    profile_init();    
+    profile_init();   
 
 #if !(ENABLE_SINGLE_NODE_ONLY)
     if (num_nodes != 1) {
