@@ -531,16 +531,18 @@ int config_parse(int argc, char *argv[])
         argv[i] = nargv[i];
     free(nargv);
 
-    // parse config.affinity_policy_name and populate config.affinity_policy_id accordingly
-    if(strcmp(config.affinity_policy_name, "LEGACY_PIN") == 0){
-        config.affinity_policy_id = LEGACY_PIN_POLICY;
-    }else if(strcmp(config.affinity_policy_name, "NO_SMT") == 0){
-        config.affinity_policy_id = NO_SMT_POLICY;
-    }else if(strcmp(config.affinity_policy_name, "PIN") == 0){
-        config.affinity_policy_id = PIN_POLICY;
-    }else{
-        printf("Failed to parse affinity policy (either LEGACY_PIN, NO_SMT, PIN)\n");
-        exit(-1);
+    if(config.thread_pinning){
+        // parse config.affinity_policy_name and populate config.affinity_policy_id accordingly
+        if(strcmp(config.affinity_policy_name, "LEGACY_PIN") == 0){
+            config.affinity_policy_id = LEGACY_PIN_POLICY;
+        }else if(strcmp(config.affinity_policy_name, "NO_SMT") == 0){
+            config.affinity_policy_id = NO_SMT_POLICY;
+        }else if(strcmp(config.affinity_policy_name, "PIN") == 0){
+            config.affinity_policy_id = PIN_POLICY;
+        }else{
+            printf("Failed to parse affinity policy (either LEGACY_PIN, NO_SMT, PIN)\n");
+            exit(-1);
+        }
     }
 
     return cnt;
