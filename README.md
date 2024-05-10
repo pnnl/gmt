@@ -8,6 +8,12 @@ The only dependencies for GMT are:
 - Linux
 - A C compiler
 - MPI
+- Portable Hardware Locality (hwloc)
+
+If hwloc has been installed from source, or CMake is not able to locate it, it is reccomend to set the PKG_CONFIG_PATH env variable:
+```
+export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:$HWLOC_INSTALL_DIR/lib/pkgconfig
+```
 
 ### How to build GMT
 
