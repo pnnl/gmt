@@ -26,6 +26,12 @@ endif()
 
 project(GMT ${cmake_3_0_PROJ_VERSION} ${cmake_3_0_LANGUAGES} CXX)
 
+##### HWLOC #####
+include(FindPkgConfig REQUIRED)
+pkg_check_modules(hwloc REQUIRED IMPORTED_TARGET hwloc)
+link_libraries(PkgConfig::hwloc)
+#################
+
 if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   message(STATUS "No build type selected, default to Debug")
   set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Build type (default Debug)" FORCE)
