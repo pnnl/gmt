@@ -52,6 +52,9 @@ set_source_files_properties(main.c PROPERTIES LANGUAGE CXX )
 
 add_executable(gmttest main.c)
 set_target_properties(gmttest PROPERTIES LINKER_LANGUAGE CXX)
+if (CLANG_TIDY_EXE)
+  set_target_properties(gmttest PROPERTIES CXX_CLANG_TIDY "${DO_CLANG_TIDY}")
+endif()
 target_link_libraries(gmttest gmttestlib gmt ${MPI_LIBRARIES})
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/run_test.sh ${CMAKE_CURRENT_BINARY_DIR}/run_test.sh COPYONLY)
